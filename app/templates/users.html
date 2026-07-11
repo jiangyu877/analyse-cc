@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% block title %}用户管理 - 消费分析系统{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-people me-2" style="color:var(--primary);"></i>用户管理</h4>
+        <p class="text-secondary mb-0">管理系统用户账号和权限</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="search-box">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" id="userSearchInput" placeholder="搜索用户..." oninput="filterUsers()">
+        </div>
+        <button class="btn btn-accent" onclick="openAddModal()"><i class="bi bi-person-plus me-1"></i>新增用户</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people me-1" style="color:var(--primary);"></i>用户列表</span>
+        <span class="badge badge-info" id="userCountBadge">{{ users|length }} 个用户</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="userTable">
+                <thead>
+                    <tr>
+                        <th>用户ID</th>
+                        <th>用户名</th>
+                        <th>全名</th>
+                        <th>邮箱</th>
+                        <th>角色</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>最后登录</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr data-username="{{ user.username|lower }}" data-fullname="{{ (user.full_name or '')|lower }}" data-email="{{ (user.email or '')|lower }}">
+                        <td class="text-muted small">{{ user.id }}</td>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.full_name or '-' }}</td>
+                        <td>{{ user.email or '-' }}</td>
+                        <td><span class="badge badge-primary">{{ user.role }}</span></td>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge badge-success">启用</span>
+                            {% else %}
+                            <span class="badge badge-muted">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ user.created_at[:10] if user.created_at else '-' }}</td>
+                        <td class="small text-muted">{{ user.last_login_at[:16] if user.last_login_at else '-' }}</td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-outline-primary" onclick="openEditModal({{ user.id }})" title="编辑"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="confirmDelete({{ user.id }})" title="删除" style="color:var(--danger);border-color:rgba(239,68,68,0.3);"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination-container" id="userPagination"></div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2" style="color:var(--primary);"></i>编辑用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label class="form-label">全名</label>
+                        <input type="text" id="editFullName" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" id="editEmail" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select id="editRole" class="form-select"></select>
+                    </div>
+                </form>
+                <hr style="border-color:var(--border);">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-secondary small">修改密码</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="openPasswordModal()"><i class="bi bi-key me-1"></i>修改密码</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveEdit()"><i class="bi bi-check-lg me-1"></i>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2" style="color:var(--primary);"></i>新增用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addForm">
+                    <div class="mb-3">
+                        <label class="form-label">用户名 <span style="color:var(--danger);">*</span></label>
+                        <input type="text" id="addUsername" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">全名</label>
+                        <input type="text" id="addFullName" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" id="addEmail" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码 <span style="color:var(--danger);">*</span></label>
+                        <input type="password" id="addPassword" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select id="addRole" class="form-select"></select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveAdd()"><i class="bi bi-check-lg me-1"></i>添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Password Modal -->
+<div class="modal fade" id="passwordModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-key me-2" style="color:var(--warning);"></i>修改密码</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="passwordForm">
+                    <input type="hidden" id="passwordUserId">
+                    <div class="mb-3">
+                        <label class="form-label">新密码 <span style="color:var(--danger);">*</span></label>
+                        <input type="password" id="newPassword" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-accent" onclick="savePassword()"><i class="bi bi-check-lg me-1"></i>确认修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" style="color:var(--danger);"><i class="bi bi-exclamation-triangle me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">确定要删除该用户吗？此操作不可撤销。</p>
+                <input type="hidden" id="deleteUserId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="doDelete()"><i class="bi bi-trash me-1"></i>确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var currentEditUserId = null;
+var userPage = 1;
+var userPageSize = 10;
+var allUserRows = [];
+
+function initUserRows() {
+    allUserRows = [];
+    document.querySelectorAll('#userTable tbody tr').forEach(function(tr) {
+        allUserRows.push(tr);
+    });
+    renderUserPage(1);
+}
+
+function renderUserPage(page) {
+    userPage = page;
+    var tbody = document.querySelector('#userTable tbody');
+    tbody.innerHTML = '';
+    var start = (page - 1) * userPageSize;
+    var end = start + userPageSize;
+    var pageRows = allUserRows.slice(start, end);
+    pageRows.forEach(function(r) { tbody.appendChild(r); });
+    var totalPages = Math.ceil(allUserRows.length / userPageSize);
+    renderPagination('userPagination', userPage, totalPages, goToUserPage);
+    document.getElementById('userCountBadge').textContent = allUserRows.length + ' 个用户';
+}
+
+function goToUserPage(page) { renderUserPage(page); }
+
+function filterUsers() {
+    var q = document.getElementById('userSearchInput').value.trim().toLowerCase();
+    if (!q) {
+        allUserRows = [];
+        document.querySelectorAll('#userTable tbody tr').forEach(function(tr) { allUserRows.push(tr); });
+    } else {
+        allUserRows = [];
+        document.querySelectorAll('#userTable tr[data-username]').forEach(function(tr) {
+            var u = tr.getAttribute('data-username') || '';
+            var f = tr.getAttribute('data-fullname') || '';
+            var e = tr.getAttribute('data-email') || '';
+            if (u.indexOf(q) !== -1 || f.indexOf(q) !== -1 || e.indexOf(q) !== -1) {
+                allUserRows.push(tr.cloneNode(true));
+            }
+        });
+        if (!allUserRows.length) {
+            var tbody = document.querySelector('#userTable tbody');
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-search d-block mb-2" style="font-size:1.5rem;"></i>未找到匹配用户</td></tr>';
+            document.getElementById('userPagination').innerHTML = '';
+            document.getElementById('userCountBadge').textContent = '0 个用户';
+            return;
+        }
+    }
+    renderUserPage(1);
+}
+
+function fetchRoles(selectId) {
+    fetch('{{ url_for("users.get_roles") }}')
+        .then(function(res) { return res.json(); })
+        .then(function(roles) {
+            var sel = document.getElementById(selectId);
+            sel.innerHTML = '';
+            roles.forEach(function(r) {
+                var opt = document.createElement('option');
+                opt.value = r; opt.textContent = r;
+                sel.appendChild(opt);
+            });
+        })
+        .catch(function(e) { showToast('获取角色列表失败', 'danger'); });
+}
+
+function openAddModal() {
+    fetchRoles('addRole');
+    document.getElementById('addForm').reset();
+    new bootstrap.Modal(document.getElementById('addModal')).show();
+}
+
+function saveAdd() {
+    var data = {
+        username: document.getElementById('addUsername').value.trim(),
+        full_name: document.getElementById('addFullName').value.trim(),
+        email: document.getElementById('addEmail').value.trim(),
+        password: document.getElementById('addPassword').value,
+        role: document.getElementById('addRole').value
+    };
+    if (!data.username || !data.password) {
+        showToast('用户名和密码不能为空', 'warning');
+        return;
+    }
+    fetch('{{ url_for("users.add_user") }}', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(result) {
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+            showToast(result.message, 'success');
+            setTimeout(function() { location.reload(); }, 800);
+        } else { showToast(result.message, 'danger'); }
+    })
+    .catch(function(e) { showToast('请求失败: ' + e.message, 'danger'); });
+}
+
+function openEditModal(userId) {
+    currentEditUserId = userId;
+    document.getElementById('editUserId').value = userId;
+    fetchRoles('editRole');
+    var rows = document.querySelectorAll('#userTable tbody tr');
+    rows.forEach(function(row) {
+        if (row.cells[0].textContent.trim() == userId) {
+            document.getElementById('editFullName').value = row.cells[2].textContent.trim() === '-' ? '' : row.cells[2].textContent.trim();
+            document.getElementById('editEmail').value = row.cells[3].textContent.trim() === '-' ? '' : row.cells[3].textContent.trim();
+        }
+    });
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+function saveEdit() {
+    var data = {
+        user_id: document.getElementById('editUserId').value,
+        full_name: document.getElementById('editFullName').value.trim(),
+        email: document.getElementById('editEmail').value.trim(),
+        role: document.getElementById('editRole').value
+    };
+    fetch('{{ url_for("users.edit_user") }}', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(result) {
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+            showToast(result.message, 'success');
+            setTimeout(function() { location.reload(); }, 800);
+        } else { showToast(result.message, 'danger'); }
+    })
+    .catch(function(e) { showToast('请求失败: ' + e.message, 'danger'); });
+}
+
+function confirmDelete(userId) {
+    document.getElementById('deleteUserId').value = userId;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function doDelete() {
+    var userId = document.getElementById('deleteUserId').value;
+    fetch('{{ url_for("users.delete_user") }}', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({user_id: userId})
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(result) {
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+            showToast(result.message, 'success');
+            setTimeout(function() { location.reload(); }, 800);
+        } else { showToast(result.message, 'danger'); }
+    })
+    .catch(function(e) { showToast('请求失败: ' + e.message, 'danger'); });
+}
+
+function openPasswordModal() {
+    document.getElementById('passwordUserId').value = currentEditUserId;
+    document.getElementById('newPassword').value = '';
+    new bootstrap.Modal(document.getElementById('passwordModal')).show();
+}
+
+function savePassword() {
+    var password = document.getElementById('newPassword').value;
+    if (!password) { showToast('请输入新密码', 'warning'); return; }
+    fetch('{{ url_for("users.change_password") }}', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({user_id: document.getElementById('passwordUserId').value, password: password})
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(result) {
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
+            showToast(result.message, 'success');
+        } else { showToast(result.message, 'danger'); }
+    })
+    .catch(function(e) { showToast('请求失败: ' + e.message, 'danger'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initUserRows();
+});
+</script>
+{% endblock %}

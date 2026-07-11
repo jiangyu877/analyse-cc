@@ -1,0 +1,48 @@
+databases:
+  - name: analyse-cc-db
+    databaseName: consumer_analysis
+    user: consumer_app
+    plan: free
+
+services:
+  - type: web
+    name: analyse-cc
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/bootstrap_cloud.py && python serve.py
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: FLASK_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: HOST
+        value: 0.0.0.0
+      - key: WEB_THREADS
+        value: "4"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: IMPORT_DEMO_DATA
+        value: "true"
+      - key: DEMO_CUSTOMERS
+        value: "5000"
+      - key: DEMO_TRANSACTIONS
+        value: "50000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analyse-cc-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: OPERATOR_PASSWORD
+        sync: false
+      - key: ANALYST_PASSWORD
+        sync: false

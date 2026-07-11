@@ -1,0 +1,16 @@
+.git
+.github
+.agents
+.cache
+.pytest_cache
+.venv
+venv
+__pycache__
+*.pyc
+.env
+logs
+tests
+*.docx
+gradio_app.py
+analysis_workbench.py
+import_more_users.py

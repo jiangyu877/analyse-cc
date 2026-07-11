@@ -1,0 +1,48 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+venv/
+.venv/
+.tools/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+.agents/
+.codex/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+logs/
+*.log
+.cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Project
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.pkl
+*.joblib
+instance/
+uploads/

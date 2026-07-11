@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}趋势预测 - 消费分析系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h3><i class="bi bi-graph-up me-2"></i>趋势预测</h3>
+    <p class="text-secondary">基于历史消费数据，使用机器学习模型预测未来消费趋势</p>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-sliders me-2"></i>预测参数</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">预测模型</label>
+                    <select id="modelSelect" class="form-select">
+                        <option value="prophet">Prophet</option>
+                        <option value="lstm">LSTM</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">预测天数</label>
+                    <input type="number" id="periodsInput" class="form-control" value="180" min="7" max="365">
+                </div>
+                <button id="predictBtn" class="btn btn-primary w-100" onclick="runPrediction()">
+                    <i class="bi bi-play-fill me-1"></i>开始预测
+                </button>
+                <div id="predictSpinner" class="text-center mt-3 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">预测中...</span>
+                    </div>
+                    <p class="text-secondary mt-2 mb-0">正在计算，请稍候...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="bi bi-info-circle me-2"></i>模型说明</h5>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="modelTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="prophet-tab" data-bs-toggle="tab" data-bs-target="#prophet" type="button" role="tab">Prophet</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="lstm-tab" data-bs-toggle="tab" data-bs-target="#lstm" type="button" role="tab">LSTM</button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3" id="modelTabContent">
+                    <div class="tab-pane fade show active" id="prophet" role="tabpanel">
+                        <p><strong>Prophet</strong> 是基于可加性时间序列分解模型，自动捕捉年度、周度等周期性规律，能有效处理缺失值和异常点，对趋势变化具有较好的鲁棒性，适合具有明显周期性的消费数据预测。</p>
+                        <p class="text-secondary mb-0">特点：自动检测周期性变化、对节假日效应建模、提供预测置信区间。</p>
+                    </div>
+                    <div class="tab-pane fade" id="lstm" role="tabpanel">
+                        <p><strong>LSTM</strong>（长短期记忆神经网络）是一种特殊的循环神经网络，通过学习历史序列中的长期依赖关系进行预测，善于捕捉复杂的非线性模式，适合数据量大、模式复杂的场景。</p>
+                        <p class="text-secondary mb-0">特点：捕捉复杂非线性关系、适应性强、需要较多训练数据。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0"><i class="bi bi-bar-chart-line me-2"></i>预测结果</h5>
+        <span id="modelBadge" class="badge bg-secondary d-none">Prophet</span>
+    </div>
+    <div class="card-body">
+        <canvas id="forecastChart" height="320"></canvas>
+        <div id="noDataMsg" class="text-center text-secondary py-5">
+            <i class="bi bi-graph-up" style="font-size: 3rem;"></i>
+            <p class="mt-2">请设置参数并点击"开始预测"</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let forecastChart = null;
+
+function runPrediction() {
+    const model = document.getElementById('modelSelect').value;
+    const periods = parseInt(document.getElementById('periodsInput').value) || 180;
+    const btn = document.getElementById('predictBtn');
+    const spinner = document.getElementById('predictSpinner');
+
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    document.getElementById('noDataMsg')?.classList.add('d-none');
+
+    fetch('{{ url_for("forecast.predict") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model: model, periods: periods})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            showError(data.message || '预测失败');
+            return;
+        }
+
+        document.getElementById('modelBadge').classList.remove('d-none');
+        document.getElementById('modelBadge').textContent = data.model === 'prophet' ? 'Prophet 模型' : 'LSTM 模型';
+
+        drawChart(data);
+    })
+    .catch(err => {
+        showError('请求失败: ' + err.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    });
+}
+
+function drawChart(data) {
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+
+    if (forecastChart) {
+        forecastChart.destroy();
+    }
+
+    const allLabels = [...data.historical_dates, ...data.forecast_dates];
+    const historicalData = [...data.historical_values, ...new Array(data.forecast_dates.length).fill(null)];
+    const forecastData = [...new Array(data.historical_dates.length).fill(null), ...data.forecast_values];
+
+    const datasets = [
+        {
+            label: '历史数据',
+            data: historicalData,
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false
+        },
+        {
+            label: '预测数据',
+            data: forecastData,
+            borderColor: '#dc3545',
+            borderDash: [6, 3],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false
+        }
+    ];
+
+    if (data.forecast_lower && data.forecast_upper) {
+        const lowerData = [...new Array(data.historical_dates.length).fill(null), ...data.forecast_lower];
+        const upperData = [...new Array(data.historical_dates.length).fill(null), ...data.forecast_upper];
+
+        datasets.push({
+            label: '置信区间下限',
+            data: lowerData,
+            borderColor: 'rgba(220, 53, 69, 0)',
+            pointRadius: 0,
+            fill: '-index',
+            tension: 0.3
+        });
+        datasets.push({
+            label: '置信区间上限',
+            data: upperData,
+            borderColor: 'rgb(220, 53, 69)',
+            backgroundColor: 'rgba(220, 53, 69, 0.15)',
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3
+        });
+    }
+
+    // Limit displayed labels to avoid congestion
+    const step = Math.max(1, Math.floor(allLabels.length / 30));
+    const tickLabels = allLabels.map((d, i) => i % step === 0 ? d : '');
+
+    forecastChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: allLabels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    labels: { usePointStyle: true, padding: 20 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.parsed.y !== null) {
+                                return context.dataset.label + ': ¥' + context.parsed.y.toFixed(2);
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        callback: function(val, idx) {
+                            return tickLabels[idx] || '';
+                        }
+                    },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(val) { return '¥' + val.toFixed(0); }
+                    },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+function showError(msg) {
+    const noData = document.getElementById('noDataMsg');
+    if (noData) {
+        noData.classList.remove('d-none');
+        noData.innerHTML = '<i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><p class="mt-2 text-danger">' + msg + '</p>';
+    }
+}
+</script>
+{% endblock %}

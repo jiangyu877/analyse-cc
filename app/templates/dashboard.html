@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>零售交易分析平台</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --home-bg:#151719;
+      --home-surface:#1d2022;
+      --home-line:rgba(255,255,255,.16);
+      --home-text:#f6f5f0;
+      --home-muted:#b8bab7;
+      --home-green:#64d5a4;
+      --home-yellow:#f0c75e;
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--home-bg); color:var(--home-text); font-family:"Segoe UI","Microsoft YaHei UI",Arial,sans-serif; }
+    a { color:inherit; }
+    button { font:inherit; }
+
+    .hero {
+      height:calc(100vh - 68px);
+      min-height:680px;
+      max-height:900px;
+      margin:18px;
+      position:relative;
+      overflow:hidden;
+      border-radius:8px;
+      isolation:isolate;
+      background:#080a0b;
+    }
+    .hero-media {
+      position:absolute;
+      inset:-20px;
+      width:calc(100% + 40px);
+      height:calc(100% + 40px);
+      object-fit:cover;
+      object-position:center;
+      filter:brightness(.52) saturate(.82) contrast(1.08) blur(2px);
+      z-index:-3;
+    }
+    .hero-shade { position:absolute; inset:0; background:rgba(3,5,6,.55); z-index:-2; }
+    .hero-header {
+      position:relative;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      padding:28px 34px;
+      z-index:3;
+    }
+    .brand { display:flex; align-items:center; gap:12px; text-decoration:none; font-weight:700; }
+    .brand-mark { width:32px; height:32px; border:8px solid var(--home-text); border-right-color:transparent; border-radius:50%; transform:rotate(-38deg); }
+    .brand-copy { display:flex; flex-direction:column; gap:1px; }
+    .brand-copy strong { font-size:15px; letter-spacing:0; }
+    .brand-copy span { color:var(--home-muted); font-size:11px; font-weight:500; }
+    .hero-nav { display:flex; flex-direction:column; align-items:flex-end; gap:7px; }
+    .hero-nav a,.hero-nav button {
+      border:0;
+      background:transparent;
+      color:var(--home-text);
+      text-decoration:none;
+      cursor:pointer;
+      padding:0;
+      font-size:13px;
+      font-weight:600;
+      line-height:1.35;
+    }
+    .hero-nav a:hover,.hero-nav button:hover { color:var(--home-green); }
+    .hero-nav form { margin:0; }
+
+    .corner-shape { position:absolute; pointer-events:none; z-index:1; }
+    .corner-shape.top {
+      width:164px;
+      height:164px;
+      left:-32px;
+      top:86px;
+      border:40px solid var(--home-text);
+      border-right-color:transparent;
+      border-bottom-color:transparent;
+      border-radius:50%;
+      transform:rotate(-35deg);
+    }
+    .corner-shape.bottom {
+      width:170px;
+      height:170px;
+      right:-34px;
+      bottom:-30px;
+      border:40px solid var(--home-text);
+      border-left-color:transparent;
+      border-top-color:transparent;
+      border-radius:50%;
+      transform:rotate(-20deg);
+    }
+
+    .hero-copy {
+      position:absolute;
+      left:50%;
+      top:47%;
+      width:min(860px,68%);
+      transform:translate(-50%,-50%);
+      display:grid;
+      grid-template-columns:150px minmax(0,1fr);
+      gap:30px;
+      align-items:center;
+      z-index:2;
+    }
+    .hero-kicker { font-size:15px; line-height:1.6; font-weight:650; }
+    .hero-kicker::before { content:""; display:block; width:30px; height:3px; background:var(--home-green); margin-bottom:13px; }
+    .hero-title { margin:0; font-family:"Arial Narrow","Roboto Condensed","Microsoft YaHei UI",sans-serif; font-size:108px; line-height:.84; font-weight:900; letter-spacing:0; }
+    .hero-title span { display:block; white-space:nowrap; }
+    .hero-title span:nth-child(2) { transform:translateX(-82px); }
+    .hero-title span:nth-child(3) { transform:translateX(34px); }
+    .hero-note {
+      position:absolute;
+      left:calc(50% + 210px);
+      top:61%;
+      width:230px;
+      color:#d0d2ce;
+      font-size:12px;
+      line-height:1.55;
+      z-index:2;
+    }
+
+    .hero-metrics {
+      position:absolute;
+      left:34px;
+      right:34px;
+      bottom:22px;
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      border-top:1px solid var(--home-line);
+      z-index:2;
+    }
+    .hero-metric { padding:14px 16px 4px 0; min-width:0; }
+    .hero-metric + .hero-metric { border-left:1px solid var(--home-line); padding-left:18px; }
+    .hero-metric small { display:block; color:var(--home-muted); font-size:11px; margin-bottom:4px; }
+    .hero-metric strong { display:block; font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .hero-metric:nth-child(3) strong { color:var(--home-green); }
+    .hero-metric:nth-child(4) strong { color:var(--home-yellow); }
+
+    .home-content { max-width:1480px; margin:0 auto; padding:34px 42px 72px; }
+    .section-head { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:28px; }
+    .section-head h2 { margin:0; font-size:42px; line-height:1; letter-spacing:0; }
+    .section-head p { max-width:420px; margin:0; color:var(--home-muted); font-size:13px; line-height:1.6; }
+    .operations-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr); border-top:1px solid var(--home-line); border-bottom:1px solid var(--home-line); }
+    .trend-panel { min-width:0; padding:28px 34px 28px 0; border-right:1px solid var(--home-line); }
+    .orders-panel { min-width:0; padding:28px 0 28px 34px; }
+    .panel-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; font-size:14px; font-weight:650; }
+    .panel-title span { color:var(--home-muted); font-size:11px; font-weight:500; }
+    .panel-title a { color:var(--home-green); font-size:12px; text-decoration:none; }
+    .chart-wrap { height:300px; }
+    .orders-table { width:100%; border-collapse:collapse; }
+    .orders-table th { color:var(--home-muted); font-size:10px; font-weight:600; text-align:left; padding:0 8px 10px 0; }
+    .orders-table td { border-top:1px solid var(--home-line); padding:12px 8px 12px 0; font-size:12px; }
+    .orders-table td:nth-child(3) { font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap; }
+    .order-status { display:inline-block; color:var(--home-green); }
+    .empty { color:var(--home-muted); text-align:center; padding:30px 0 !important; }
+    .module-links { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:34px; border-top:1px solid var(--home-line); }
+    .module-link { display:flex; justify-content:space-between; align-items:center; padding:20px 18px 20px 0; color:var(--home-text); text-decoration:none; font-size:14px; border-bottom:1px solid var(--home-line); }
+    .module-link + .module-link { border-left:1px solid var(--home-line); padding-left:18px; }
+    .module-link i { color:var(--home-muted); font-size:18px; }
+    .module-link:hover { color:var(--home-green); }
+
+    @media(max-width:1100px) {
+      .hero-copy { width:76%; grid-template-columns:120px minmax(0,1fr); }
+      .hero-title { font-size:82px; }
+      .hero-title span:nth-child(2) { transform:translateX(-42px); }
+      .hero-title span:nth-child(3) { transform:translateX(20px); }
+      .hero-note { left:calc(50% + 155px); width:205px; }
+    }
+    @media(max-width:800px) {
+      .hero { height:auto; min-height:720px; margin:10px; }
+      .hero-header { padding:20px; flex-direction:column; gap:18px; }
+      .hero-nav { width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:8px 10px; }
+      .hero-nav a,.hero-nav button { font-size:12px; text-align:left; }
+      .corner-shape.top { width:110px; height:110px; top:132px; border-width:28px; }
+      .corner-shape.bottom { width:118px; height:118px; border-width:28px; }
+      .hero-copy { top:45%; width:calc(100% - 48px); grid-template-columns:1fr; gap:18px; }
+      .hero-kicker { width:190px; }
+      .hero-title { font-size:64px; line-height:.9; }
+      .hero-title span:nth-child(2),.hero-title span:nth-child(3) { transform:none; }
+      .hero-note { left:24px; top:auto; bottom:170px; width:250px; }
+      .hero-metrics { left:20px; right:20px; bottom:16px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .hero-metric:nth-child(3) { border-left:0; padding-left:0; border-top:1px solid var(--home-line); }
+      .hero-metric:nth-child(4) { border-top:1px solid var(--home-line); }
+      .hero-metric strong { font-size:18px; }
+      .home-content { padding:34px 20px 60px; }
+      .section-head { align-items:flex-start; flex-direction:column; }
+      .section-head h2 { font-size:32px; }
+      .operations-grid { grid-template-columns:1fr; }
+      .trend-panel { border-right:0; border-bottom:1px solid var(--home-line); padding:24px 0; }
+      .orders-panel { padding:24px 0; }
+      .module-links { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .module-link:nth-child(3) { border-left:0; padding-left:0; }
+    }
+    @media(max-width:480px) {
+      .brand-copy span { display:none; }
+      .hero { min-height:760px; }
+      .hero-title { font-size:49px; }
+      .hero-copy { top:43%; }
+      .hero-note { bottom:178px; }
+      .hero-metric { padding-top:10px; }
+      .hero-metric strong { font-size:16px; }
+      .module-links { grid-template-columns:1fr; }
+      .module-link + .module-link { border-left:0; padding-left:0; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero" aria-labelledby="home-title">
+    <img class="hero-media" src="{{ url_for('static', filename='images/retail-hero-processed.jpg') }}" alt="餐饮零售消费场景">
+    <div class="hero-shade"></div>
+    <div class="corner-shape top" aria-hidden="true"></div>
+    <div class="corner-shape bottom" aria-hidden="true"></div>
+
+    <header class="hero-header">
+      <a class="brand" href="{{ url_for('main.dashboard') }}">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy"><strong>RETAIL PULSE</strong><span>零售交易分析平台</span></span>
+      </a>
+      <nav class="hero-nav" aria-label="首页导航">
+        <a href="#operations">经营概览</a>
+        <a href="{{ url_for('customers.index') }}">客户360</a>
+        <a href="{{ url_for('products.index') }}">商品库存</a>
+        <a href="{{ url_for('orders.index') }}">订单业务</a>
+        <a href="{{ url_for('algorithms.index') }}">算法任务</a>
+        {% if session.get('role') == 'admin' %}<a href="{{ url_for('imports.index') }}">数据导入</a>{% endif %}
+        <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">退出登录</button></form>
+      </nav>
+    </header>
+
+    <div class="hero-copy">
+      <div class="hero-kicker">让每一笔交易<br>成为下一次增长<br>的清晰信号。</div>
+      <h1 class="hero-title" id="home-title"><span>零售数据</span><span>洞察与</span><span>增长</span></h1>
+    </div>
+    <p class="hero-note">连接客户、商品、订单、支付与模型结果，在同一套业务事实中识别价值、风险与增长机会。</p>
+
+    <div class="hero-metrics" aria-label="核心经营指标">
+      <div class="hero-metric"><small>活跃客户</small><strong>{{ '{:,}'.format(summary.customer_count) }}</strong></div>
+      <div class="hero-metric"><small>本月订单</small><strong>{{ '{:,}'.format(summary.month_orders) }}</strong></div>
+      <div class="hero-metric"><small>本月净交易额</small><strong>¥ {{ '{:,.2f}'.format(summary.month_net_amount|float) }}</strong></div>
+      <div class="hero-metric"><small>低库存商品</small><strong>{{ summary.low_stock_count }}</strong></div>
+    </div>
+  </section>
+
+  <main class="home-content" id="operations">
+    <div class="section-head">
+      <h2>LIVE COMMERCE<br>SIGNALS</h2>
+      <p>经营数据来自支付与退款消费流水。趋势、订单和客户价值使用同一数据库事实口径，保证分析结果可回溯。</p>
+    </div>
+    <div class="operations-grid">
+      <section class="trend-panel" aria-labelledby="trend-title">
+        <div class="panel-title" id="trend-title">近 12 个月净交易额 <span>单位：人民币</span></div>
+        <div class="chart-wrap"><canvas id="trendChart" aria-label="近12个月净交易额趋势图"></canvas></div>
+      </section>
+      <section class="orders-panel" aria-labelledby="orders-title">
+        <div class="panel-title" id="orders-title">最近订单 <a href="{{ url_for('orders.index') }}">查看全部 <i class="ti ti-arrow-up-right"></i></a></div>
+        <table class="orders-table">
+          <thead><tr><th>订单号</th><th>客户</th><th>金额</th><th>状态</th></tr></thead>
+          <tbody>
+          {% for row in recent_orders %}
+            <tr><td>{{ row.order_no }}</td><td>{{ row.customer_name }}</td><td>¥{{ row.total_amount }}</td><td><span class="order-status">{{ row.status }}</span></td></tr>
+          {% else %}<tr><td colspan="4" class="empty">暂无订单</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+    <nav class="module-links" aria-label="业务模块快捷入口">
+      <a class="module-link" href="{{ url_for('customers.index') }}"><span>客户价值</span><i class="ti ti-arrow-up-right"></i></a>
+      <a class="module-link" href="{{ url_for('products.index') }}"><span>商品库存</span><i class="ti ti-arrow-up-right"></i></a>
+      <a class="module-link" href="{{ url_for('payments.index') }}"><span>支付退款</span><i class="ti ti-arrow-up-right"></i></a>
+      <a class="module-link" href="{{ url_for('algorithms.index') }}"><span>算法模型</span><i class="ti ti-arrow-up-right"></i></a>
+    </nav>
+  </main>
+
+  <script>
+    new Chart(document.getElementById('trendChart'), {
+      type:'line',
+      data:{labels:{{ trend_labels|tojson }},datasets:[{data:{{ trend_values|tojson }},borderColor:'#64d5a4',backgroundColor:'rgba(100,213,164,.12)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f6f5f0',fill:true,tension:.24}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{displayColors:false}},scales:{x:{grid:{display:false},ticks:{color:'#9da19e',maxRotation:0}},y:{grid:{color:'rgba(255,255,255,.09)'},ticks:{color:'#9da19e'}}}}
+    });
+  </script>
+</body>
+</html>

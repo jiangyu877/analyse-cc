@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}登录 - 零售交易分析平台{% endblock %}
+{% block guest_content %}
+<div style="min-height:100vh;display:grid;place-items:center;padding:20px;background:#eef2f4">
+  <div class="panel" style="width:min(400px,100%);padding:28px">
+    <div class="text-center mb-4"><i class="ti ti-building-store" style="font-size:38px;color:#13795b"></i><h1 style="font-size:21px;letter-spacing:0;margin:8px 0 4px">零售交易分析平台</h1><div class="text-muted small">客户、订单与模型结果统一管理</div></div>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3"><label class="form-label">用户名</label><input class="form-control" name="username" required autocomplete="username"></div>
+      <div class="mb-4"><label class="form-label">密码</label><input class="form-control" type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn btn-primary w-100" type="submit">登录</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

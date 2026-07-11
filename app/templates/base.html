@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}零售交易分析平台{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --brand:#13795b; --brand-dark:#0f6048; --ink:#20262e; --muted:#66717f; --line:#dce1e7; --surface:#fff; --page:#f4f6f8; }
+    body { background:var(--page); color:var(--ink); font-family:"Segoe UI","Microsoft YaHei UI",sans-serif; }
+    .app-shell { min-height:100vh; display:grid; grid-template-columns:228px minmax(0,1fr); }
+    .sidebar { background:#182029; color:#d9e0e7; padding:18px 12px; }
+    .brand { display:flex; align-items:center; gap:10px; color:#fff; font-weight:700; font-size:16px; padding:5px 10px 20px; }
+    .brand i { color:#50c99a; font-size:22px; }
+    .nav-label { color:#84909d; font-size:11px; font-weight:700; margin:16px 10px 6px; text-transform:uppercase; }
+    .side-link { color:#bdc7d1; display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:6px; margin:2px 0; text-decoration:none; font-size:14px; }
+    .side-link:hover,.side-link.active { color:#fff; background:#263440; }
+    .side-link.active { box-shadow:inset 3px 0 #50c99a; }
+    .main { min-width:0; }
+    .topbar { height:58px; background:var(--surface); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:flex-end; padding:0 28px; gap:15px; }
+    .content { padding:24px 28px 40px; max-width:1600px; margin:auto; }
+    .page-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:18px; }
+    .page-head h1 { font-size:22px; margin:0; letter-spacing:0; }
+    .page-head p { color:var(--muted); margin:4px 0 0; font-size:13px; }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:6px; }
+    .panel-head { padding:13px 16px; border-bottom:1px solid var(--line); font-weight:650; display:flex; justify-content:space-between; align-items:center; }
+    .panel-body { padding:16px; }
+    .stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .stat { background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:16px; }
+    .stat-label { color:var(--muted); font-size:12px; }
+    .stat-value { font-size:25px; font-weight:700; margin-top:6px; }
+    .btn-primary { background:var(--brand); border-color:var(--brand); }
+    .btn-primary:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
+    .table > :not(caption) > * > * { padding:.65rem .8rem; }
+    .table thead th { color:var(--muted); background:#f8f9fa; font-size:12px; white-space:nowrap; }
+    .badge { border-radius:4px; }
+    .form-label { font-size:12px; font-weight:650; }
+    .form-control,.form-select,.btn { border-radius:5px; }
+    .split { display:grid; grid-template-columns:minmax(320px,420px) minmax(0,1fr); gap:18px; align-items:start; }
+    .empty { padding:32px; color:var(--muted); text-align:center; }
+    .money { font-variant-numeric:tabular-nums; font-weight:600; }
+    @media(max-width:900px){ .app-shell{grid-template-columns:1fr}.sidebar{position:static}.stat-grid{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.content{padding:18px}.topbar{padding:0 18px}.sidebar nav{display:grid;grid-template-columns:repeat(2,1fr)}.nav-label{grid-column:1/-1} }
+    @media(max-width:520px){ .stat-grid{grid-template-columns:1fr}.page-head{align-items:flex-start;flex-direction:column}.sidebar nav{grid-template-columns:1fr} }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+{% if session.get('user_id') %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><i class="ti ti-building-store"></i><span>零售交易分析平台</span></div>
+    <nav>
+      <div class="nav-label">业务总览</div>
+      <a class="side-link {{ 'active' if request.endpoint == 'main.dashboard' }}" href="{{ url_for('main.dashboard') }}"><i class="ti ti-layout-dashboard"></i>仪表盘</a>
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('customers.') }}" href="{{ url_for('customers.index') }}"><i class="ti ti-users"></i>客户360</a>
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('products.') }}" href="{{ url_for('products.index') }}"><i class="ti ti-package"></i>商品与库存</a>
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('orders.') }}" href="{{ url_for('orders.index') }}"><i class="ti ti-receipt"></i>订单</a>
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('payments.') }}" href="{{ url_for('payments.index') }}"><i class="ti ti-credit-card"></i>支付</a>
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('refunds.') }}" href="{{ url_for('refunds.index') }}"><i class="ti ti-cash-banknote-off"></i>退款</a>
+      <div class="nav-label">数据与模型</div>
+      {% if session.get('role') == 'admin' %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('imports.') }}" href="{{ url_for('imports.index') }}"><i class="ti ti-database-import"></i>数据导入</a>{% endif %}
+      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('algorithms.') }}" href="{{ url_for('algorithms.index') }}"><i class="ti ti-chart-dots-3"></i>算法任务</a>
+      {% if session.get('role') == 'admin' %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('custom_query.') }}" href="{{ url_for('custom_query.custom_query_page') }}"><i class="ti ti-database-search"></i>只读 SQL 实验</a>{% endif %}
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <span class="text-muted small">{{ session.get('full_name') or session.get('username') }} · {{ session.get('role') }}</span>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary" title="退出登录"><i class="ti ti-logout"></i></button></form>
+    </header>
+    <main class="content">
+      {% for category,message in get_flashed_messages(with_categories=true) %}<div class="alert alert-{{ category }}" role="alert">{{ message }}</div>{% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}{% block guest_content %}{% endblock %}{% endif %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

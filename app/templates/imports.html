@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}数据导入{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>数据导入</h1><p>服务端批量导入客户主数据与历史消费，批次全程可追溯</p></div></div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">客户总数</div><div class="stat-value">{{ summary.customer_count }}</div></div>
+  <div class="stat"><div class="stat-label">订单总数</div><div class="stat-value">{{ summary.order_count }}</div></div>
+  <div class="stat"><div class="stat-label">成功消费流水</div><div class="stat-value">{{ summary.consumption_count }}</div></div>
+  <div class="stat"><div class="stat-label">累计净消费</div><div class="stat-value money">¥{{ '%.2f'|format(summary.net_amount|float) }}</div></div>
+</div>
+<section class="panel">
+  <div class="panel-head">导入批次 <span class="text-muted small">批量任务通过服务端脚本执行</span></div>
+  <div class="table-responsive"><table class="table"><thead><tr><th>批次号</th><th>数据来源</th><th>客户数</th><th>消费数</th><th>状态</th><th>开始时间</th><th>完成时间</th></tr></thead><tbody>
+    {% for b in batches %}<tr><td><code>{{ b.batch_no }}</code></td><td>{{ b.source_name }}</td><td>{{ b.customer_count }}</td><td>{{ b.transaction_count }}</td><td><span class="badge {{ 'bg-success-lt' if b.status == 'success' else 'bg-danger-lt' if b.status == 'failed' else 'bg-warning-lt' }}">{{ b.status }}</span></td><td>{{ b.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td>{{ b.finished_at.strftime('%Y-%m-%d %H:%M:%S') if b.finished_at else '-' }}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">暂无导入批次</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,47 @@
+services:
+  database:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: consumer_analysis
+      POSTGRES_USER: consumer_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/v2_schema.sql:/docker-entrypoint-initdb.d/001-v2-schema.sql:ro
+      - ./database/v2_seed.sql:/docker-entrypoint-initdb.d/002-v2-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U consumer_app -d consumer_analysis"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  web:
+    build: .
+    environment:
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      DATABASE_URL: postgresql+psycopg2://consumer_app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@database:5432/consumer_analysis
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?set OPERATOR_PASSWORD}
+      ANALYST_PASSWORD: ${ANALYST_PASSWORD:?set ANALYST_PASSWORD}
+      HOST: 0.0.0.0
+      PORT: 5000
+      WEB_THREADS: 8
+      TRUST_PROXY: "true"
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    command: ["sh", "-c", "python scripts/init_db.py && python serve.py"]
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
