@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 
 set "GIT=C:\Users\jiang\cmd\git.exe"
 set "REMOTE=https://github.com/jiangyu877/analyse-cc.git"
@@ -39,7 +39,13 @@ if errorlevel 1 goto :failed
 
 "%GIT%" diff --cached --quiet
 if errorlevel 1 (
-    "%GIT%" commit -m "Initial production-ready release"
+    "%GIT%" rev-parse --verify HEAD >nul 2>&1
+    if errorlevel 1 (
+        set "COMMIT_MESSAGE=Initial production-ready release"
+    ) else (
+        set "COMMIT_MESSAGE=Add readable algorithm charts and result tables"
+    )
+    "%GIT%" commit -m "!COMMIT_MESSAGE!"
     if errorlevel 1 goto :failed
 ) else (
     echo No new changes to commit.

@@ -1,4 +1,263 @@
-{% extends "base.html" %}{% block title %}算法任务{% endblock %}
-{% block content %}<div class="page-head"><div><h1>算法任务</h1><p>结果、参数和指标按 task_id 留存，可追溯每次运行</p></div>{% if gradio_public_url %}<a class="btn btn-primary" href="{{ gradio_public_url }}" target="_blank" rel="noopener"><i class="ti ti-chart-histogram"></i> 打开 Gradio 图形分析</a>{% endif %}</div>
-{% if session.role in ['admin','analyst'] %}<section class="panel mb-3"><div class="panel-head">运行算法</div><div class="panel-body d-flex flex-wrap gap-3"><form method="post" action="{{ url_for('algorithms.run',task_type='rfm') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary"><i class="ti ti-calculator"></i> 计算 RFM</button></form><form class="d-flex gap-2" method="post" action="{{ url_for('algorithms.run',task_type='kmeans') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control" style="width:90px" type="number" name="clusters" value="4" min="2" max="8"><button class="btn btn-outline-secondary"><i class="ti ti-chart-dots"></i> KMeans 分群</button></form><form class="d-flex gap-2" method="post" action="{{ url_for('algorithms.run',task_type='churn') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control" style="width:100px" type="number" name="observation_days" value="90" min="30" max="180"><button class="btn btn-outline-secondary"><i class="ti ti-user-question"></i> 流失分类</button></form></div></section>{% endif %}
-<section class="panel"><div class="panel-head">任务历史</div><div class="table-responsive"><table class="table"><thead><tr><th>ID</th><th>类型</th><th>状态</th><th>参数</th><th>指标</th><th>开始</th><th>错误</th></tr></thead><tbody>{% for t in tasks %}<tr><td>{{ t.task_id }}</td><td>{{ t.task_type }}</td><td><span class="badge {{ 'bg-success-lt' if t.status=='success' else 'bg-danger-lt' if t.status=='failed' else 'bg-warning-lt' }}">{{ t.status }}</span></td><td><code>{{ t.parameters }}</code></td><td><code>{{ t.metrics }}</code></td><td>{{ t.started_at.strftime('%Y-%m-%d %H:%M') }}</td><td class="text-danger" style="max-width:280px">{{ t.error_message or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="empty">暂无算法任务</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}算法任务{% endblock %}
+
+{% block extra_head %}
+<style>
+  .algorithm-run-grid { display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:0; }
+  .algorithm-run { padding:16px; min-width:0; }
+  .algorithm-run + .algorithm-run { border-left:1px solid var(--line); }
+  .algorithm-run-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; margin-bottom:5px; }
+  .algorithm-run-title i { color:var(--brand); font-size:19px; }
+  .algorithm-run p { color:var(--muted); font-size:12px; line-height:1.55; min-height:38px; margin:0 0 12px; }
+  .algorithm-actions { display:flex; align-items:end; gap:8px; }
+  .algorithm-actions .field { width:96px; flex:0 0 96px; }
+  .algorithm-actions .form-label { margin-bottom:4px; }
+  .result-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+  .result-heading h2 { font-size:17px; letter-spacing:0; margin:0 0 4px; }
+  .result-heading p { color:var(--muted); font-size:12px; margin:0; }
+  .result-meta { color:var(--muted); font-size:12px; white-space:nowrap; }
+  .algorithm-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--line); }
+  .algorithm-summary-item { padding:17px 18px; min-width:0; }
+  .algorithm-summary-item + .algorithm-summary-item { border-left:1px solid var(--line); }
+  .summary-label { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
+  .summary-label i { color:var(--brand); font-size:17px; }
+  .summary-value { font-size:21px; font-weight:750; margin:7px 0 2px; overflow-wrap:anywhere; }
+  .summary-hint { color:var(--muted); font-size:11px; }
+  .result-layout { display:grid; grid-template-columns:minmax(280px,.72fr) minmax(0,1.55fr); min-width:0; }
+  .result-chart { padding:20px; border-right:1px solid var(--line); min-width:0; }
+  .result-chart h3 { font-size:13px; margin:0 0 12px; }
+  .chart-frame { position:relative; height:300px; width:100%; }
+  .result-table { min-width:0; }
+  .result-table .table { margin:0; }
+  .result-table td { vertical-align:middle; font-size:13px; }
+  .result-table .advice { min-width:190px; color:#405063; }
+  .share-bar { width:92px; height:6px; background:#e8ecef; overflow:hidden; }
+  .share-bar span { display:block; height:100%; background:var(--brand); }
+  .share-value { font-size:11px; color:var(--muted); margin-top:4px; }
+  .history-type { font-weight:650; white-space:nowrap; }
+  .history-summary { color:#405063; font-size:12px; }
+  .table .selected-task > * { background:#eef8f4; }
+  .risk-high { color:#b42318; background:#fee4e2; }
+  .risk-medium { color:#8a4b08; background:#fff1cf; }
+  .risk-low { color:#18794e; background:#dff7ea; }
+  @media(max-width:1100px) {
+    .algorithm-run-grid { grid-template-columns:1fr; }
+    .algorithm-run + .algorithm-run { border-left:0; border-top:1px solid var(--line); }
+    .result-layout { grid-template-columns:1fr; }
+    .result-chart { border-right:0; border-bottom:1px solid var(--line); }
+  }
+  @media(max-width:760px) {
+    .algorithm-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .algorithm-summary-item:nth-child(3) { border-left:0; border-top:1px solid var(--line); }
+    .algorithm-summary-item:nth-child(4) { border-top:1px solid var(--line); }
+    .result-heading { flex-direction:column; gap:5px; }
+    .result-meta { white-space:normal; }
+  }
+  @media(max-width:480px) {
+    .algorithm-summary { grid-template-columns:1fr; }
+    .algorithm-summary-item + .algorithm-summary-item { border-left:0; border-top:1px solid var(--line); }
+    .algorithm-actions { align-items:stretch; flex-direction:column; }
+    .algorithm-actions .field { width:100%; flex-basis:auto; }
+    .algorithm-actions .btn { width:100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>算法任务</h1>
+    <p>计算完成后直接生成客户分布图和业务明细表</p>
+  </div>
+  {% if gradio_public_url %}
+  <a class="btn btn-primary" href="{{ gradio_public_url }}" target="_blank" rel="noopener">
+    <i class="ti ti-chart-histogram"></i> 打开图形分析
+  </a>
+  {% endif %}
+</div>
+
+{% if session.role in ['admin','analyst'] %}
+<section class="panel mb-3">
+  <div class="panel-head">运行算法</div>
+  <div class="algorithm-run-grid">
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='rfm') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-user-star"></i>客户价值分层</div>
+      <p>按最近消费、购买次数和消费金额识别重点客户。</p>
+      <button class="btn btn-primary" type="submit"><i class="ti ti-calculator"></i> 计算 RFM</button>
+    </form>
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='kmeans') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-chart-dots"></i>客户智能分群</div>
+      <p>自动识别消费习惯相近的客群，计算前需先完成 RFM。</p>
+      <div class="algorithm-actions">
+        <div class="field"><label class="form-label" for="clusters">分组数量</label><input id="clusters" class="form-control" type="number" name="clusters" value="4" min="2" max="8"></div>
+        <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-chart-dots"></i> 开始分群</button>
+      </div>
+    </form>
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='churn') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-user-question"></i>客户流失预警</div>
+      <p>预测客户停止购买的风险，列出最需要优先回访的客户。</p>
+      <div class="algorithm-actions">
+        <div class="field"><label class="form-label" for="observation-days">观察天数</label><input id="observation-days" class="form-control" type="number" name="observation_days" value="90" min="30" max="180"></div>
+        <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-user-question"></i> 开始预测</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if selected_task %}
+<section class="panel mb-3" id="task-result">
+  <div class="panel-head result-heading">
+    <div>
+      <h2>{{ result.title if result else task_labels.get(selected_task.task_type, selected_task.task_type) }}</h2>
+      <p>{{ result.subtitle if result else '本次任务没有可展示的结果。' }}</p>
+    </div>
+    <div class="result-meta">任务 #{{ selected_task.task_id }} · {{ selected_task.started_at.strftime('%Y-%m-%d %H:%M') }}</div>
+  </div>
+
+  {% if result %}
+  <div class="algorithm-summary">
+    {% for item in result.summary %}
+    <div class="algorithm-summary-item">
+      <div class="summary-label"><i class="ti {{ item.icon }}"></i>{{ item.label }}</div>
+      <div class="summary-value">{{ item.value }}</div>
+      <div class="summary-hint">{{ item.hint }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="result-layout">
+    <div class="result-chart">
+      <h3>{{ '客户风险分布' if result.type == 'churn' else '客户数量分布' }}</h3>
+      <div class="chart-frame"><canvas id="algorithmResultChart" aria-label="{{ result.title }}图表"></canvas></div>
+    </div>
+    <div class="result-table table-responsive">
+      {% if result.type == 'rfm' %}
+      <table class="table">
+        <thead><tr><th>客户分层</th><th>客户数 / 占比</th><th>平均未消费</th><th>平均购买</th><th>人均消费</th><th>建议动作</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td class="fw-semibold">{{ row.segment }}</td>
+          <td><div>{{ row.customer_count }} 人</div><div class="share-bar"><span style="width:{{ row.percentage }}%"></span></div><div class="share-value">{{ row.percentage }}%</div></td>
+          <td>{{ '%.0f'|format(row.avg_recency) }} 天</td>
+          <td>{{ '%.1f'|format(row.avg_frequency) }} 次</td>
+          <td class="money">¥{{ '{:,.0f}'.format(row.avg_monetary) }}</td>
+          <td class="advice">{{ row.advice }}</td>
+        </tr>{% else %}<tr><td colspan="6" class="empty">暂无分层结果</td></tr>{% endfor %}</tbody>
+      </table>
+      {% elif result.type == 'kmeans' %}
+      <table class="table">
+        <thead><tr><th>客户群</th><th>客户数 / 占比</th><th>平均未消费</th><th>平均购买</th><th>人均消费</th><th>建议动作</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td class="fw-semibold">{{ row.display_label }}</td>
+          <td><div>{{ row.customer_count }} 人</div><div class="share-bar"><span style="width:{{ row.percentage }}%"></span></div><div class="share-value">{{ row.percentage }}%</div></td>
+          <td>{{ '%.0f'|format(row.avg_recency) }} 天</td>
+          <td>{{ '%.1f'|format(row.avg_frequency) }} 次</td>
+          <td class="money">¥{{ '{:,.0f}'.format(row.avg_monetary) }}</td>
+          <td class="advice">{{ row.advice }}</td>
+        </tr>{% else %}<tr><td colspan="6" class="empty">暂无分群结果</td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}
+      <table class="table">
+        <thead><tr><th>风险等级</th><th>客户数 / 占比</th><th>平均风险</th><th>建议动作</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td><span class="badge {{ 'risk-high' if row.risk_level == '高风险' else 'risk-medium' if row.risk_level == '需关注' else 'risk-low' }}">{{ row.risk_level }}</span></td>
+          <td><div>{{ row.customer_count }} 人</div><div class="share-bar"><span style="width:{{ row.percentage }}%"></span></div><div class="share-value">{{ row.percentage }}%</div></td>
+          <td>{{ '%.1f'|format(row.avg_probability * 100) }}%</td>
+          <td class="advice">{{ '48 小时内优先回访' if row.risk_level == '高风险' else '安排定向关怀' if row.risk_level == '需关注' else '保持常规服务' }}</td>
+        </tr>{% else %}<tr><td colspan="4" class="empty">暂无风险结果</td></tr>{% endfor %}</tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="panel-body">
+    {% if selected_task.status == 'failed' %}<div class="alert alert-danger mb-0">计算失败：{{ selected_task.error_message or '请检查数据后重试' }}</div>
+    {% else %}<div class="text-muted">任务正在计算，请稍后刷新页面。</div>{% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% if result and result.type == 'churn' %}
+<section class="panel mb-3">
+  <div class="panel-head"><span>优先回访客户</span><span class="text-muted small">流失概率最高的 10 位客户</span></div>
+  <div class="table-responsive"><table class="table mb-0">
+    <thead><tr><th>客户</th><th>流失概率</th><th>距最近消费</th><th>历史购买</th><th>累计消费</th><th></th></tr></thead>
+    <tbody>{% for customer in result.top_customers %}<tr>
+      <td><div class="fw-semibold">{{ customer.name }}</div><div class="text-muted small">{{ customer.customer_no }}</div></td>
+      <td><span class="badge {{ 'risk-high' if customer.churn_probability >= 0.7 else 'risk-medium' if customer.churn_probability >= 0.3 else 'risk-low' }}">{{ '%.1f'|format(customer.churn_probability * 100) }}%</span></td>
+      <td>{{ customer.recency_days if customer.recency_days is not none else '-' }} 天</td>
+      <td>{{ customer.frequency if customer.frequency is not none else '-' }} 次</td>
+      <td class="money">{% if customer.monetary is not none %}¥{{ '{:,.0f}'.format(customer.monetary) }}{% else %}-{% endif %}</td>
+      <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers.detail', customer_id=customer.customer_id) }}">查看客户</a></td>
+    </tr>{% else %}<tr><td colspan="6" class="empty">暂无客户预测结果</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head"><span>任务历史</span><span class="text-muted small">点击查看任意一次计算结果</span></div>
+  <div class="table-responsive"><table class="table mb-0">
+    <thead><tr><th>ID</th><th>分析类型</th><th>状态</th><th>计算范围</th><th>结果摘要</th><th>开始时间</th><th></th></tr></thead>
+    <tbody>{% for task in tasks %}{% set metrics = task.metrics or {} %}<tr class="{{ 'selected-task' if selected_task and task.task_id == selected_task.task_id else '' }}">
+      <td>#{{ task.task_id }}</td>
+      <td class="history-type">{{ task_labels.get(task.task_type, task.task_type) }}</td>
+      <td><span class="badge {{ 'bg-success-lt' if task.status == 'success' else 'bg-danger-lt' if task.status == 'failed' else 'bg-warning-lt' }}">{{ '已完成' if task.status == 'success' else '失败' if task.status == 'failed' else '计算中' }}</span></td>
+      <td>{% if task.task_type == 'kmeans' %}{{ task.parameters.get('clusters', 4) }} 个客户群{% elif task.task_type == 'churn' %}观察 {{ task.parameters.get('observation_days', 90) }} 天{% else %}全部客户{% endif %}</td>
+      <td class="history-summary">
+        {% if task.status == 'failed' %}{{ task.error_message or '计算失败' }}
+        {% elif task.task_type == 'rfm' %}{{ metrics.get('customer_count:all', 0)|int }} 位客户
+        {% elif task.task_type == 'kmeans' %}{{ metrics.get('customer_count:all', 0)|int }} 位客户 · 清晰度 {{ '%.2f'|format(metrics.get('silhouette:all', 0)|float) }}
+        {% else %}模型识别力 {{ '%.1f'|format(metrics.get('auc:training', 0)|float * 100) }}%
+        {% endif %}
+      </td>
+      <td>{{ task.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{% if task.status == 'success' %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('algorithms.index', task_id=task.task_id) }}#task-result"><i class="ti ti-chart-bar"></i> 查看结果</a>{% else %}-{% endif %}</td>
+    </tr>{% else %}<tr><td colspan="7" class="empty">暂无算法任务</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if result %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const data = {{ result.chart | tojson }};
+    const canvas = document.getElementById('algorithmResultChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const colors = data.colors || ['#13795b', '#e6a23c', '#d1495b', '#3b82a0', '#7a6f9b', '#6b7785', '#45a17a', '#c06c45'];
+    const isBar = data.type === 'bar';
+    new Chart(canvas, {
+      type: data.type,
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: data.label,
+          data: data.values,
+          backgroundColor: data.labels.map(function (_, index) { return colors[index % colors.length]; }),
+          borderColor: '#ffffff',
+          borderWidth: isBar ? 0 : 2,
+          borderRadius: isBar ? 3 : 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: isBar ? 'y' : 'x',
+        plugins: {
+          legend: { display: !isBar, position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
+          tooltip: { callbacks: { label: function (context) { return context.label + '：' + context.raw + ' 人'; } } }
+        },
+        scales: isBar ? {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#e8ecef' } },
+          y: { grid: { display: false } }
+        } : {}
+      }
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}
