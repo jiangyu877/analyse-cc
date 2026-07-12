@@ -94,6 +94,54 @@ def test_dashboard_keeps_admin_bento_links_permission_gated():
         assert route_reference not in nav_without_guarded_block
 
 
+def test_dashboard_hero_uses_black_text_on_a_light_surface():
+    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+
+    assert "--hero-ink:#000;" in template
+    assert "--hero-line:rgba(0,0,0,.24);" in template
+    assert _selector_has_declaration(template, ".hero", "color", "var(--hero-ink)")
+    assert _selector_has_declaration(
+        template,
+        ".hero-shade",
+        "background",
+        "rgba(247,248,246,.72)",
+    )
+    assert _selector_has_declaration(template, ".hero-note", "color", "var(--hero-ink)")
+    assert _selector_has_declaration(
+        template,
+        ".hero-metrics",
+        "border-top",
+        "1px solid var(--hero-line)",
+    )
+    assert _selector_has_declaration(
+        template,
+        ".hero-metric + .hero-metric",
+        "border-left",
+        "1px solid var(--hero-line)",
+    )
+    assert _selector_has_declaration(
+        template,
+        ".hero-metric small",
+        "color",
+        "var(--hero-ink)",
+    )
+    for selector in (
+        ".hero-metric:nth-child(3) strong",
+        ".hero-metric:nth-child(4) strong",
+    ):
+        assert _selector_has_declaration(template, selector, "color", "var(--hero-ink)")
+    for selector in (
+        ".hero-metric:nth-child(3)",
+        ".hero-metric:nth-child(4)",
+    ):
+        assert _selector_has_declaration(
+            template,
+            selector,
+            "border-top",
+            "1px solid var(--hero-line)",
+        )
+
+
 def test_mobile_hero_limits_density_and_viewport_shift():
     template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
 
