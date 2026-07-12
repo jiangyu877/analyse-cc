@@ -29,3 +29,10 @@ def test_gradio_link_is_environment_driven_for_public_hosts():
 
     assert "gradio_public_url" in template
     assert "http://127.0.0.1:7860" not in template
+
+
+def test_existing_repository_uses_dashboard_navigation_commit_message():
+    push_script = (ROOT / "push_to_github.cmd").read_text(encoding="utf-8")
+
+    assert 'set "COMMIT_MESSAGE=Add Magic Bento dashboard navigation"' in push_script
+    assert 'set "COMMIT_MESSAGE=Make LineWaves background self-contained"' not in push_script

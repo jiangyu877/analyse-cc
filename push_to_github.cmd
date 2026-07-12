@@ -47,7 +47,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         set "COMMIT_MESSAGE=Initial production-ready release"
     ) else (
-        set "COMMIT_MESSAGE=Make LineWaves background self-contained"
+        set "COMMIT_MESSAGE=Add Magic Bento dashboard navigation"
     )
     "%GIT%" commit -m "!COMMIT_MESSAGE!"
     if errorlevel 1 goto :failed
