@@ -43,7 +43,10 @@ def test_dashboard_integrates_line_waves_with_safe_fallbacks():
     assert "data-line-waves" in template
     assert "js/line-waves.js" in template
     assert "hero-media" in template
-    assert "ogl@1.0.11/dist/ogl.mjs" in script
+    assert "getContext('webgl'" in script
+    assert "compileShader" in script
+    assert "gl.drawArrays(gl.TRIANGLES, 0, 3)" in script
+    assert "cdn.jsdelivr.net/npm/ogl" not in script
     assert "prefers-reduced-motion" in script
     assert "Math.min(window.devicePixelRatio || 1, 1.5)" in script
     assert "ResizeObserver" in script
