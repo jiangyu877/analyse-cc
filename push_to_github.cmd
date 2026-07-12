@@ -43,7 +43,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         set "COMMIT_MESSAGE=Initial production-ready release"
     ) else (
-        set "COMMIT_MESSAGE=Add readable algorithm charts and result tables"
+        set "COMMIT_MESSAGE=Improve mobile dashboard hero layout"
     )
     "%GIT%" commit -m "!COMMIT_MESSAGE!"
     if errorlevel 1 goto :failed
