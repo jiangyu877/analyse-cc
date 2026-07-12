@@ -3,8 +3,12 @@ setlocal EnableDelayedExpansion
 
 set "GIT=C:\Users\jiang\cmd\git.exe"
 set "REMOTE=https://github.com/jiangyu877/analyse-cc.git"
+set "GIT_PROXY="
 
 cd /d "%~dp0"
+
+netstat.exe -ano | findstr /C:"127.0.0.1:7897" | findstr "LISTENING" >nul
+if not errorlevel 1 set "GIT_PROXY=http://127.0.0.1:7897"
 
 if not exist "%GIT%" (
     echo Git was not found at:
@@ -43,7 +47,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         set "COMMIT_MESSAGE=Initial production-ready release"
     ) else (
-        set "COMMIT_MESSAGE=Improve mobile dashboard hero layout"
+        set "COMMIT_MESSAGE=Simplify dashboard hero typography"
     )
     "%GIT%" commit -m "!COMMIT_MESSAGE!"
     if errorlevel 1 goto :failed
@@ -60,7 +64,12 @@ if errorlevel 1 (
 if errorlevel 1 goto :failed
 
 echo Pushing main to GitHub...
-"%GIT%" push -u origin main
+if defined GIT_PROXY (
+    echo Using Clash Verge proxy !GIT_PROXY!...
+    "%GIT%" -c http.proxy=!GIT_PROXY! push -u origin main
+) else (
+    "%GIT%" push -u origin main
+)
 if errorlevel 1 goto :failed
 
 echo.

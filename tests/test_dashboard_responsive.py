@@ -24,6 +24,8 @@ def test_mobile_hero_limits_density_and_viewport_shift():
     assert "100vh" not in template
     assert "min-height:520px" in template
     assert ".hero-title span:nth-child(2),.hero-title span:nth-child(3) { display:inline" in template
+    assert "transform:translateX" not in template
+    assert "font-size:108px" not in template
     assert 'fetchpriority="high"' in template
     assert "—" not in template
     assert "–" not in template

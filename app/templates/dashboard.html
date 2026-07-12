@@ -113,31 +113,26 @@
 
     .hero-copy {
       position:absolute;
-      left:50%;
-      top:47%;
-      width:min(860px,68%);
-      transform:translate(-50%,-50%);
-      display:grid;
-      grid-template-columns:150px minmax(0,1fr);
-      gap:30px;
-      align-items:center;
+      left:12%;
+      top:25%;
+      width:min(680px,62%);
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      align-items:flex-start;
       z-index:2;
     }
-    .hero-kicker { font-size:15px; line-height:1.6; font-weight:650; }
+    .hero-kicker { max-width:330px; font-size:15px; line-height:1.6; font-weight:650; }
     .hero-kicker::before { content:""; display:block; width:30px; height:3px; background:var(--home-green); margin-bottom:13px; }
-    .hero-title { margin:0; font-family:"Arial Narrow","Roboto Condensed","Microsoft YaHei UI",sans-serif; font-size:108px; line-height:.84; font-weight:900; letter-spacing:0; }
+    .hero-title { margin:0; font-family:"Arial Narrow","Roboto Condensed","Microsoft YaHei UI",sans-serif; font-size:88px; line-height:.94; font-weight:900; letter-spacing:0; }
     .hero-title span { display:block; white-space:nowrap; }
-    .hero-title span:nth-child(2) { transform:translateX(-82px); }
-    .hero-title span:nth-child(3) { transform:translateX(34px); }
+    .hero-title span:nth-child(2),.hero-title span:nth-child(3) { display:inline; }
     .hero-note {
-      position:absolute;
-      left:calc(50% + 210px);
-      top:61%;
-      width:230px;
+      width:min(520px,100%);
+      margin:0;
       color:#d0d2ce;
-      font-size:12px;
-      line-height:1.55;
-      z-index:2;
+      font-size:14px;
+      line-height:1.65;
     }
 
     .hero-metrics {
@@ -181,11 +176,10 @@
     .module-link:hover { color:var(--home-green); }
 
     @media(max-width:1100px) {
-      .hero-copy { width:76%; grid-template-columns:120px minmax(0,1fr); }
-      .hero-title { font-size:82px; }
-      .hero-title span:nth-child(2) { transform:translateX(-42px); }
-      .hero-title span:nth-child(3) { transform:translateX(20px); }
-      .hero-note { left:calc(50% + 155px); width:205px; }
+      .hero-nav { gap:12px; }
+      .hero-nav a,.hero-nav button { font-size:12px; }
+      .hero-copy { left:10%; top:24%; width:min(600px,68%); }
+      .hero-title { font-size:68px; }
     }
     @media(max-width:800px) {
       .hero { height:calc(100dvh - 24px); min-height:520px; max-height:720px; margin:10px; }
@@ -212,12 +206,11 @@
       .hero-nav a,.hero-nav button { width:100%; padding:11px 2px; font-size:12px; text-align:left; }
       .corner-shape.top { display:none; }
       .corner-shape.bottom { width:118px; height:118px; border-width:28px; }
-      .hero-copy { left:20px; top:112px; width:calc(100% - 40px); transform:none; grid-template-columns:1fr; gap:11px; align-items:start; }
+      .hero-copy { left:20px; top:112px; width:calc(100% - 40px); gap:11px; align-items:flex-start; }
       .hero-kicker { width:auto; font-size:13px; line-height:1.5; }
       .hero-kicker::before { margin-bottom:9px; }
       .hero-title { font-size:44px; line-height:.94; }
-      .hero-title span:nth-child(2),.hero-title span:nth-child(3) { display:inline; transform:none; }
-      .hero-note { left:20px; right:20px; top:288px; bottom:auto; width:auto; font-size:12px; line-height:1.55; }
+      .hero-note { width:min(360px,100%); font-size:12px; line-height:1.55; }
       .hero-metrics { left:20px; right:20px; bottom:16px; grid-template-columns:repeat(2,minmax(0,1fr)); }
       .hero-metric { padding:10px 8px 5px 0; }
       .hero-metric + .hero-metric { padding-left:12px; }
@@ -242,7 +235,6 @@
       .hero-nav { top:62px; left:14px; right:14px; }
       .hero-copy { left:18px; top:104px; width:calc(100% - 36px); }
       .hero-title { font-size:40px; }
-      .hero-note { left:18px; right:18px; top:272px; }
       .hero-metrics { left:18px; right:18px; bottom:12px; }
       .hero-metric strong { font-size:16px; }
       .module-links { grid-template-columns:1fr; }
@@ -279,8 +271,8 @@
     <div class="hero-copy">
       <div class="hero-kicker">让每一笔交易<br>成为下一次增长的清晰信号。</div>
       <h1 class="hero-title" id="home-title"><span>零售数据</span><span>洞察与</span><span>增长</span></h1>
+      <p class="hero-note">汇总客户、商品和订单，快速识别价值客户、经营风险与增长机会。</p>
     </div>
-    <p class="hero-note">汇总客户、商品和订单，快速识别价值客户、经营风险与增长机会。</p>
 
     <div class="hero-metrics" aria-label="核心经营指标">
       <div class="hero-metric"><small>活跃客户</small><strong>{{ '{:,}'.format(summary.customer_count) }}</strong></div>
