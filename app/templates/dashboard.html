@@ -18,13 +18,84 @@
     }
     * { box-sizing:border-box; }
     html { scroll-behavior:smooth; }
-    body { margin:0; background:var(--home-bg); color:var(--home-text); font-family:"Segoe UI","Microsoft YaHei UI",Arial,sans-serif; }
+    body { margin:0; overflow-x:hidden; background:var(--home-bg); color:var(--home-text); font-family:"Segoe UI","Microsoft YaHei UI",Arial,sans-serif; }
     a { color:inherit; }
     button { font:inherit; }
 
+    .home-topbar {
+      position:sticky;
+      top:0;
+      z-index:30;
+      height:56px;
+      display:flex;
+      align-items:center;
+      gap:24px;
+      padding:0 18px;
+      border-bottom:1px solid var(--home-line);
+      background:#111315;
+    }
+    .brand { display:flex; align-items:center; gap:10px; flex:0 0 auto; text-decoration:none; font-weight:700; }
+    .brand-mark { width:27px; height:27px; border:7px solid var(--home-text); border-right-color:transparent; border-radius:50%; transform:rotate(-38deg); }
+    .brand-copy { display:flex; flex-direction:column; gap:1px; }
+    .brand-copy strong { font-size:14px; letter-spacing:0; }
+    .brand-copy span { color:var(--home-muted); font-size:10px; font-weight:500; }
+    .topbar-links { display:flex; align-items:center; gap:2px; height:100%; }
+    .topbar-link { display:flex; align-items:center; height:100%; padding:0 12px; color:var(--home-muted); text-decoration:none; font-size:12px; font-weight:600; border-bottom:2px solid transparent; }
+    .topbar-link:hover,.topbar-link.active { color:var(--home-text); border-bottom-color:var(--home-green); }
+    .topbar-actions { display:flex; align-items:center; gap:10px; margin-left:auto; }
+    .user-meta { color:var(--home-muted); font-size:11px; white-space:nowrap; }
+    .topbar-icon-button,.shell-menu-toggle {
+      width:36px;
+      height:36px;
+      display:grid;
+      place-items:center;
+      border:1px solid var(--home-line);
+      border-radius:6px;
+      background:transparent;
+      color:var(--home-text);
+      padding:0;
+      cursor:pointer;
+    }
+    .topbar-icon-button:hover,.shell-menu-toggle:hover { border-color:var(--home-green); color:var(--home-green); }
+    .topbar-icon-button:active,.shell-menu-toggle:active { transform:translateY(1px); }
+    .topbar-icon-button i,.shell-menu-toggle i { font-size:19px; }
+    .shell-menu-toggle { display:none; }
+    .home-layout { display:grid; grid-template-columns:216px minmax(0,1fr); align-items:start; }
+    .home-sidebar {
+      position:sticky;
+      top:56px;
+      height:calc(100dvh - 56px);
+      overflow-y:auto;
+      padding:18px 12px 28px;
+      border-right:1px solid var(--home-line);
+      background:#111315;
+      z-index:25;
+    }
+    .sidebar-group + .sidebar-group { margin-top:22px; }
+    .sidebar-label { padding:0 10px 7px; color:#737b7a; font-size:10px; font-weight:700; }
+    .home-side-link {
+      display:flex;
+      align-items:center;
+      gap:9px;
+      min-height:38px;
+      padding:8px 10px;
+      border-left:2px solid transparent;
+      border-radius:5px;
+      color:#c8cecb;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:600;
+    }
+    .home-side-link i { width:17px; color:#7f8985; font-size:17px; text-align:center; }
+    .home-side-link:hover { color:var(--home-text); background:rgba(255,255,255,.045); }
+    .home-side-link.active { color:var(--home-text); border-left-color:var(--home-green); background:rgba(100,213,164,.08); }
+    .home-side-link.active i { color:var(--home-green); }
+    .sidebar-backdrop { display:none; }
+    .home-main { min-width:0; }
+
     .hero {
-      height:calc(100dvh - 68px);
-      min-height:680px;
+      height:calc(100dvh - 92px);
+      min-height:620px;
       max-height:900px;
       margin:18px;
       position:relative;
@@ -40,52 +111,13 @@
       height:calc(100% + 40px);
       object-fit:cover;
       object-position:center;
-      filter:brightness(.52) saturate(.82) contrast(1.08) blur(2px);
-      z-index:-3;
+      filter:brightness(.26) saturate(.62) contrast(1.08) blur(2px);
+      z-index:-4;
     }
-    .hero-shade { position:absolute; inset:0; background:rgba(3,5,6,.55); z-index:-2; }
-    .hero-header {
-      position:relative;
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      padding:28px 34px;
-      z-index:3;
-    }
-    .brand { display:flex; align-items:center; gap:12px; text-decoration:none; font-weight:700; }
-    .brand-mark { width:32px; height:32px; border:8px solid var(--home-text); border-right-color:transparent; border-radius:50%; transform:rotate(-38deg); }
-    .brand-copy { display:flex; flex-direction:column; gap:1px; }
-    .brand-copy strong { font-size:15px; letter-spacing:0; }
-    .brand-copy span { color:var(--home-muted); font-size:11px; font-weight:500; }
-    .hero-menu-toggle {
-      display:none;
-      width:40px;
-      height:40px;
-      border:1px solid var(--home-line);
-      background:rgba(8,10,11,.72);
-      color:var(--home-text);
-      place-items:center;
-      padding:0;
-      border-radius:8px;
-      cursor:pointer;
-    }
-    .hero-menu-toggle i { font-size:21px; }
-    .hero-menu-toggle:focus-visible,.hero-nav a:focus-visible,.hero-nav button:focus-visible { outline:2px solid var(--home-green); outline-offset:4px; }
-    .hero-menu-toggle:active { transform:translateY(1px); }
-    .hero-nav { display:flex; flex-direction:row; align-items:center; gap:18px; }
-    .hero-nav a,.hero-nav button {
-      border:0;
-      background:transparent;
-      color:var(--home-text);
-      text-decoration:none;
-      cursor:pointer;
-      padding:0;
-      font-size:13px;
-      font-weight:600;
-      line-height:1.35;
-    }
-    .hero-nav a:hover,.hero-nav button:hover { color:var(--home-green); }
-    .hero-nav form { margin:0; }
+    .hero-shade { position:absolute; inset:0; background:rgba(3,5,6,.62); z-index:-3; }
+    .hero-waves { position:absolute; inset:0; z-index:-2; overflow:hidden; pointer-events:none; opacity:.82; }
+    .hero-waves canvas { display:block; width:100%; height:100%; }
+    .topbar-icon-button:focus-visible,.shell-menu-toggle:focus-visible,.topbar-link:focus-visible,.home-side-link:focus-visible { outline:2px solid var(--home-green); outline-offset:2px; }
 
     .corner-shape { position:absolute; pointer-events:none; z-index:1; }
     .corner-shape.top {
@@ -176,34 +208,42 @@
     .module-link:hover { color:var(--home-green); }
 
     @media(max-width:1100px) {
-      .hero-nav { gap:12px; }
-      .hero-nav a,.hero-nav button { font-size:12px; }
       .hero-copy { left:10%; top:24%; width:min(600px,68%); }
       .hero-title { font-size:68px; }
     }
-    @media(max-width:800px) {
-      .hero { height:calc(100dvh - 24px); min-height:520px; max-height:720px; margin:10px; }
-      .hero-header { padding:16px 18px; align-items:center; flex-direction:row; gap:12px; }
-      .hero-menu-toggle { display:grid; margin-left:auto; flex:0 0 40px; }
-      .hero-nav {
-        display:none;
-        position:absolute;
-        top:66px;
-        left:18px;
-        right:18px;
-        width:auto;
-        grid-template-columns:repeat(2,minmax(0,1fr));
-        align-items:start;
-        gap:0;
-        padding:8px 14px;
-        border:1px solid var(--home-line);
-        border-radius:8px;
-        background:rgba(14,18,21,.97);
-        box-shadow:0 14px 34px rgba(0,0,0,.32);
+    @media(max-width:900px) {
+      .home-topbar { gap:12px; padding:0 12px; }
+      .shell-menu-toggle { display:grid; }
+      .topbar-links { display:none; }
+      .user-meta { display:none; }
+      .home-layout { grid-template-columns:1fr; }
+      .home-sidebar {
+        position:fixed;
+        top:56px;
+        bottom:0;
+        left:0;
+        width:min(280px,86vw);
+        height:auto;
+        transform:translateX(-100%);
+        transition:transform .2s ease;
+        box-shadow:18px 0 40px rgba(0,0,0,.32);
       }
-      .hero-nav.is-open { display:grid; }
-      .hero-nav a,.hero-nav form { border-bottom:1px solid rgba(255,255,255,.1); }
-      .hero-nav a,.hero-nav button { width:100%; padding:11px 2px; font-size:12px; text-align:left; }
+      .home-sidebar.is-open { transform:translateX(0); }
+      .sidebar-backdrop {
+        position:fixed;
+        inset:56px 0 0;
+        z-index:24;
+        width:100%;
+        height:auto;
+        border:0;
+        background:rgba(0,0,0,.58);
+        cursor:pointer;
+      }
+      .sidebar-backdrop.is-open { display:block; }
+      body.sidebar-open { overflow:hidden; }
+    }
+    @media(max-width:800px) {
+      .hero { height:calc(100dvh - 76px); min-height:520px; max-height:720px; margin:10px; }
       .corner-shape.top { display:none; }
       .corner-shape.bottom { width:118px; height:118px; border-width:28px; }
       .hero-copy { left:20px; top:112px; width:calc(100% - 40px); gap:11px; align-items:flex-start; }
@@ -228,11 +268,6 @@
     }
     @media(max-width:480px) {
       .brand-copy span { display:none; }
-      .brand { gap:9px; }
-      .brand-mark { width:28px; height:28px; border-width:7px; }
-      .brand-copy strong { font-size:14px; }
-      .hero-header { padding:14px; }
-      .hero-nav { top:62px; left:14px; right:14px; }
       .hero-copy { left:18px; top:104px; width:calc(100% - 36px); }
       .hero-title { font-size:40px; }
       .hero-metrics { left:18px; right:18px; bottom:12px; }
@@ -240,33 +275,66 @@
       .module-links { grid-template-columns:1fr; }
       .module-link + .module-link { border-left:0; padding-left:0; }
     }
+    @media(prefers-reduced-motion:reduce) {
+      .hero-waves { opacity:.58; }
+      .home-sidebar { transition:none; }
+    }
   </style>
 </head>
 <body>
-  <section class="hero" aria-labelledby="home-title">
+  <header class="home-topbar">
+    <button class="shell-menu-toggle" type="button" aria-expanded="false" aria-controls="home-sidebar" aria-label="打开功能栏" title="打开功能栏">
+      <i class="ti ti-menu-2" aria-hidden="true"></i>
+    </button>
+    <a class="brand" href="{{ url_for('main.dashboard') }}">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-copy"><strong>RETAIL PULSE</strong><span>零售交易分析平台</span></span>
+    </a>
+    <nav class="topbar-links" aria-label="常用入口">
+      <a class="topbar-link active" href="{{ url_for('main.dashboard') }}" aria-current="page">经营总览</a>
+      <a class="topbar-link" href="{{ url_for('customers.index') }}">客户分析</a>
+      <a class="topbar-link" href="{{ url_for('algorithms.index') }}">模型任务</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="user-meta">{{ session.get('full_name') or session.get('username') }} · {{ session.get('role') }}</span>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="topbar-icon-button" type="submit" aria-label="退出登录" title="退出登录"><i class="ti ti-logout" aria-hidden="true"></i></button>
+      </form>
+    </div>
+  </header>
+
+  <div class="home-layout">
+    <aside class="home-sidebar" id="home-sidebar" aria-label="系统功能栏">
+      <nav>
+        <div class="sidebar-group">
+          <div class="sidebar-label">经营中心</div>
+          <a class="home-side-link active" href="{{ url_for('main.dashboard') }}" aria-current="page"><i class="ti ti-layout-dashboard"></i><span>经营概览</span></a>
+          <a class="home-side-link" href="{{ url_for('customers.index') }}"><i class="ti ti-users"></i><span>客户 360</span></a>
+          <a class="home-side-link" href="{{ url_for('products.index') }}"><i class="ti ti-package"></i><span>商品与库存</span></a>
+          <a class="home-side-link" href="{{ url_for('orders.index') }}"><i class="ti ti-receipt"></i><span>订单业务</span></a>
+          <a class="home-side-link" href="{{ url_for('payments.index') }}"><i class="ti ti-credit-card"></i><span>支付记录</span></a>
+          <a class="home-side-link" href="{{ url_for('refunds.index') }}"><i class="ti ti-cash-banknote-off"></i><span>退款管理</span></a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-label">数据与模型</div>
+          <a class="home-side-link" href="{{ url_for('algorithms.index') }}"><i class="ti ti-chart-dots-3"></i><span>算法任务</span></a>
+          {% if session.get('role') == 'admin' %}
+          <a class="home-side-link" href="{{ url_for('imports.index') }}"><i class="ti ti-database-import"></i><span>数据导入</span></a>
+          <a class="home-side-link" href="{{ url_for('custom_query.custom_query_page') }}"><i class="ti ti-database-search"></i><span>只读 SQL</span></a>
+          {% endif %}
+        </div>
+      </nav>
+    </aside>
+    <button class="sidebar-backdrop" type="button" aria-label="关闭功能栏"></button>
+
+    <div class="home-main">
+      <section class="hero" aria-labelledby="home-title">
     <img class="hero-media" src="{{ url_for('static', filename='images/retail-hero-processed.jpg') }}" alt="餐饮零售消费场景" fetchpriority="high" decoding="async">
     <div class="hero-shade"></div>
+    <div class="hero-waves" data-line-waves data-speed="0.3" data-inner-lines="32" data-outer-lines="36" data-warp="1" data-rotation="-45" data-brightness="0.18" data-color-1="#f6f5f0" data-color-2="#64d5a4" data-color-3="#f6f5f0" data-mouse-influence="1.35" aria-hidden="true"></div>
     <div class="corner-shape top" aria-hidden="true"></div>
     <div class="corner-shape bottom" aria-hidden="true"></div>
-
-    <header class="hero-header">
-      <a class="brand" href="{{ url_for('main.dashboard') }}">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-copy"><strong>RETAIL PULSE</strong><span>零售交易分析平台</span></span>
-      </a>
-      <button class="hero-menu-toggle" type="button" aria-expanded="false" aria-controls="hero-nav" aria-label="打开导航" title="打开导航">
-        <i class="ti ti-menu-2" aria-hidden="true"></i>
-      </button>
-      <nav class="hero-nav" id="hero-nav" aria-label="首页导航">
-        <a href="#operations">经营概览</a>
-        <a href="{{ url_for('customers.index') }}">客户360</a>
-        <a href="{{ url_for('products.index') }}">商品库存</a>
-        <a href="{{ url_for('orders.index') }}">订单业务</a>
-        <a href="{{ url_for('algorithms.index') }}">算法任务</a>
-        {% if session.get('role') == 'admin' %}<a href="{{ url_for('imports.index') }}">数据导入</a>{% endif %}
-        <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">退出登录</button></form>
-      </nav>
-    </header>
 
     <div class="hero-copy">
       <div class="hero-kicker">让每一笔交易<br>成为下一次增长的清晰信号。</div>
@@ -280,9 +348,9 @@
       <div class="hero-metric"><small>本月净交易额</small><strong>¥ {{ '{:,.0f}'.format(summary.month_net_amount|float) }}</strong></div>
       <div class="hero-metric"><small>低库存商品</small><strong>{{ summary.low_stock_count }}</strong></div>
     </div>
-  </section>
+      </section>
 
-  <main class="home-content" id="operations">
+      <main class="home-content" id="operations">
     <div class="section-head">
       <h2>LIVE COMMERCE<br>SIGNALS</h2>
       <p>经营数据来自支付与退款消费流水。趋势、订单和客户价值使用同一数据库事实口径，保证分析结果可回溯。</p>
@@ -310,30 +378,39 @@
       <a class="module-link" href="{{ url_for('payments.index') }}"><span>支付退款</span><i class="ti ti-arrow-up-right"></i></a>
       <a class="module-link" href="{{ url_for('algorithms.index') }}"><span>算法模型</span><i class="ti ti-arrow-up-right"></i></a>
     </nav>
-  </main>
+      </main>
+    </div>
+  </div>
 
+  <script type="module" src="{{ url_for('static', filename='js/line-waves.js') }}"></script>
   <script>
-    const menuToggle = document.querySelector('.hero-menu-toggle');
-    const heroNav = document.getElementById('hero-nav');
-    if (menuToggle && heroNav) {
-      const closeMenu = function () {
-        heroNav.classList.remove('is-open');
+    const menuToggle = document.querySelector('.shell-menu-toggle');
+    const sidebar = document.getElementById('home-sidebar');
+    const sidebarBackdrop = document.querySelector('.sidebar-backdrop');
+    if (menuToggle && sidebar && sidebarBackdrop) {
+      const closeSidebar = function () {
+        sidebar.classList.remove('is-open');
+        sidebarBackdrop.classList.remove('is-open');
+        document.body.classList.remove('sidebar-open');
         menuToggle.setAttribute('aria-expanded', 'false');
-        menuToggle.setAttribute('aria-label', '打开导航');
-        menuToggle.setAttribute('title', '打开导航');
+        menuToggle.setAttribute('aria-label', '打开功能栏');
+        menuToggle.setAttribute('title', '打开功能栏');
         menuToggle.querySelector('i').className = 'ti ti-menu-2';
       };
       menuToggle.addEventListener('click', function () {
-        const open = !heroNav.classList.contains('is-open');
-        heroNav.classList.toggle('is-open', open);
+        const open = !sidebar.classList.contains('is-open');
+        sidebar.classList.toggle('is-open', open);
+        sidebarBackdrop.classList.toggle('is-open', open);
+        document.body.classList.toggle('sidebar-open', open);
         menuToggle.setAttribute('aria-expanded', String(open));
-        menuToggle.setAttribute('aria-label', open ? '关闭导航' : '打开导航');
-        menuToggle.setAttribute('title', open ? '关闭导航' : '打开导航');
+        menuToggle.setAttribute('aria-label', open ? '关闭功能栏' : '打开功能栏');
+        menuToggle.setAttribute('title', open ? '关闭功能栏' : '打开功能栏');
         menuToggle.querySelector('i').className = open ? 'ti ti-x' : 'ti ti-menu-2';
       });
-      heroNav.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', closeMenu); });
-      document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeMenu(); });
-      window.addEventListener('resize', function () { if (window.innerWidth > 800) closeMenu(); });
+      sidebarBackdrop.addEventListener('click', closeSidebar);
+      sidebar.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', closeSidebar); });
+      document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeSidebar(); });
+      window.addEventListener('resize', function () { if (window.innerWidth > 900) closeSidebar(); });
     }
 
     new Chart(document.getElementById('trendChart'), {

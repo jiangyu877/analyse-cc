@@ -47,7 +47,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         set "COMMIT_MESSAGE=Initial production-ready release"
     ) else (
-        set "COMMIT_MESSAGE=Simplify dashboard hero typography"
+        set "COMMIT_MESSAGE=Add navigation shell and LineWaves background"
     )
     "%GIT%" commit -m "!COMMIT_MESSAGE!"
     if errorlevel 1 goto :failed
