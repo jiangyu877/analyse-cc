@@ -11,6 +11,16 @@ sys.path.insert(0, str(ROOT))
 from app.config import Config
 
 
+V1_PRODUCT_SKUS = (
+    "SKU-F001",
+    "SKU-F002",
+    "SKU-H001",
+    "SKU-D001",
+    "SKU-B001",
+)
+V1_PRODUCT_LIST_SQL = ", ".join(f"'{sku}'" for sku in V1_PRODUCT_SKUS)
+
+
 CUSTOMER_SQL = """
 INSERT INTO biz.customer
     (customer_no, name, gender, phone, email, province, city, registered_at)
@@ -28,14 +38,14 @@ FROM generate_series(1, %s) AS n
 ON CONFLICT (customer_no) DO NOTHING
 """
 
-ORDER_SQL = """
+ORDER_SQL = f"""
 WITH customer_pool AS (
     SELECT customer_id, row_number() OVER (ORDER BY customer_no) AS rn
     FROM biz.customer WHERE customer_no LIKE 'IMP-C-%%'
 ), product_pool AS (
     SELECT product_id, unit_price, row_number() OVER (ORDER BY product_id) AS rn,
            count(*) OVER () AS total_products
-    FROM biz.product WHERE status = 'active'
+    FROM biz.product WHERE sku IN ({V1_PRODUCT_LIST_SQL})
 ), generated AS (
     SELECT n, c.customer_id, p.product_id, p.unit_price,
            1 + (n %% 3) AS quantity,
@@ -56,11 +66,11 @@ FROM generated
 ON CONFLICT (order_no) DO NOTHING
 """
 
-ITEM_SQL = """
+ITEM_SQL = f"""
 WITH product_pool AS (
     SELECT product_id, unit_price, row_number() OVER (ORDER BY product_id) AS rn,
            count(*) OVER () AS total_products
-    FROM biz.product WHERE status = 'active'
+    FROM biz.product WHERE sku IN ({V1_PRODUCT_LIST_SQL})
 ), generated AS (
     SELECT n, p.product_id, p.unit_price, 1 + (n %% 3) AS quantity
     FROM generate_series(1, %s) AS n

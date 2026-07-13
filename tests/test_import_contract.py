@@ -1,7 +1,26 @@
 from pathlib import Path
 
+from scripts import import_demo_data
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_bulk_import_freezes_v1_product_mapping():
+    expected_skus = (
+        "SKU-F001",
+        "SKU-F002",
+        "SKU-H001",
+        "SKU-D001",
+        "SKU-B001",
+    )
+
+    assert import_demo_data.V1_PRODUCT_SKUS == expected_skus
+    for sql in (import_demo_data.ORDER_SQL, import_demo_data.ITEM_SQL):
+        for sku in expected_skus:
+            assert f"'{sku}'" in sql
+        assert "DEMO2-SKU" not in sql
+        assert "status = 'active'" not in sql
 
 
 def test_bulk_import_requires_at_least_50000_transactions():

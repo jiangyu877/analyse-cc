@@ -23,6 +23,7 @@ def index():
         GROUP BY p.payment_id, p.payment_no, o.order_no, c.name, p.amount
         HAVING p.amount - COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'success'), 0) > 0
         ORDER BY p.paid_at DESC
+        LIMIT 200
     """)).mappings().all()
     return render_template("refunds.html", refunds=RefundRepository.list(), refundable=refundable)
 

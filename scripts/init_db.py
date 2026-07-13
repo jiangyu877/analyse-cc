@@ -70,6 +70,7 @@ def main():
         with connection.cursor() as cursor:
             run_script(cursor, "v2_schema.sql")
             run_script(cursor, "v2_seed.sql")
+            run_script(cursor, "demo_commerce_v2.sql")
             configure_account_passwords(
                 cursor,
                 required=os.environ.get("FLASK_ENV", "development").lower() == "production",
