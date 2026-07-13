@@ -1,9 +1,12 @@
-import json
-
 import numpy as np
 from sqlalchemy import text
 
 from app.extensions import db
+from app.services.prediction import (
+    create_model_task,
+    finish_model_task,
+    record_model_metric,
+)
 
 
 class AlgorithmError(ValueError):
@@ -11,35 +14,15 @@ class AlgorithmError(ValueError):
 
 
 def _create_task(task_type, operator_id, parameters=None):
-    task_id = db.session.execute(text("""
-        INSERT INTO ml.model_task (task_type, parameters, created_by)
-        VALUES (:task_type, CAST(:parameters AS jsonb), :created_by)
-        RETURNING task_id
-    """), {
-        "task_type": task_type,
-        "parameters": json.dumps(parameters or {}),
-        "created_by": operator_id,
-    }).scalar_one()
-    db.session.commit()
-    return task_id
+    return create_model_task(task_type, operator_id, parameters)
 
 
 def _finish(task_id, status="success", error=None):
-    db.session.execute(text("""
-        UPDATE ml.model_task
-        SET status = :status, finished_at = now(), error_message = :error
-        WHERE task_id = :task_id
-    """), {"task_id": task_id, "status": status, "error": error})
-    db.session.commit()
+    finish_model_task(task_id, status, error)
 
 
 def _metric(task_id, name, value, dataset="all"):
-    db.session.execute(text("""
-        INSERT INTO ml.model_metric (task_id, metric_name, metric_value, dataset)
-        VALUES (:task_id, :name, :value, :dataset)
-        ON CONFLICT (task_id, metric_name, dataset)
-        DO UPDATE SET metric_value = EXCLUDED.metric_value
-    """), {"task_id": task_id, "name": name, "value": float(value), "dataset": dataset})
+    record_model_metric(task_id, name, value, dataset)
 
 
 def _latest_rfm_task_id():
@@ -122,7 +105,11 @@ def run_kmeans(operator_id, clusters=4):
     clusters = max(2, min(int(clusters), 8))
     rfm_task_id = _latest_rfm_task_id()
     task_id = _create_task(
-        "kmeans", operator_id, {"clusters": clusters, "rfm_task_id": rfm_task_id}
+        "kmeans", operator_id, {
+            "clusters": clusters,
+            "rfm_task_id": rfm_task_id,
+            "training_window": {"rfm_task_id": rfm_task_id},
+        }
     )
     try:
         if rfm_task_id is None:
@@ -174,7 +161,11 @@ def run_churn(operator_id, observation_days=90):
     task_id = _create_task(
         "churn",
         operator_id,
-        {"observation_days": observation_days, "rfm_task_id": rfm_task_id},
+        {
+            "observation_days": observation_days,
+            "rfm_task_id": rfm_task_id,
+            "training_window": {"observation_days": observation_days},
+        },
     )
     try:
         if rfm_task_id is None:

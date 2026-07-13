@@ -29,6 +29,7 @@ def create_app(config_object=None):
     from app.routes.admin import admin_bp
     from app.routes.knowledge import knowledge_bp
     from app.routes.qa import qa_bp
+    from app.routes.reports import reports_bp
 
     for blueprint in (
         auth_bp,
@@ -45,6 +46,7 @@ def create_app(config_object=None):
         admin_bp,
         knowledge_bp,
         qa_bp,
+        reports_bp,
     ):
         app.register_blueprint(blueprint)
 

@@ -1,256 +1,222 @@
 import re
-import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
-from jinja2 import Environment
+import pytest
+from flask import Flask
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_ROOT = ROOT / "app" / "templates"
+
+NAV_PERMISSIONS = {
+    "customers": "customer.read",
+    "products": "product.read",
+    "orders": "order.read",
+    "payments": "payment.read",
+    "refunds": "refund.read",
+    "reports": "analysis.read",
+    "imports": "import.read",
+    "models": "model.read",
+    "sql": "sql.execute",
+    "knowledge": "knowledge.read",
+    "qa-chat": "qa.read",
+    "qa-tickets": "qa.handle",
+    "accounts": "system.manage",
+    "audit": "audit.read",
+}
 
 
-def _has_class(source, class_name):
-    class_attributes = re.finditer(
-        r"(?<![\w:-])class\s*=\s*(['\"])(.*?)\1",
-        source,
-        re.DOTALL,
+def _workspace():
+    return {
+        "snapshot": {"snapshot_date": "2026-07-13"},
+        "summary": {
+            "customer_count": 124,
+            "month_orders": 86,
+            "month_net_amount": 32145.67,
+            "low_stock_count": 2,
+        },
+        "trend_labels": ["2026-06", "2026-07"],
+        "trend_values": [25000.0, 32145.67],
+        "recent_orders": [],
+        "alerts": {
+            "low_stock": {
+                "count": 2,
+                "items": [{"sku": "SKU-LOW", "product_name": "低库存商品", "stock_qty": 3}],
+            },
+            "refunds": {
+                "count": 3,
+                "items": [{"refund_no": "RF-1001", "amount": 88.0, "created_at": "2026-07-13"}],
+            },
+            "models": {
+                "count": 1,
+                "items": [{"task_id": 17, "task_type": "churn", "status": "failed"}],
+            },
+            "knowledge": {
+                "count": 4,
+                "items": [{"document_id": 9, "title": "退款规则", "status": "ready"}],
+            },
+            "tickets": {
+                "count": 5,
+                "items": [{"ticket_id": 31, "question": "如何申请退款", "status": "pending"}],
+            },
+        },
+    }
+
+
+def _render_dashboard(permissions):
+    environment = Environment(
+        loader=FileSystemLoader(TEMPLATE_ROOT),
+        autoescape=select_autoescape(("html",)),
     )
-    return any(class_name in match.group(2).split() for match in class_attributes)
-
-
-def _selector_has_declaration(source, selector, property_name, value):
-    rule = re.search(
-        rf"(?m)^\s*{re.escape(selector)}\s*\{{(?P<declarations>[^}}]*)\}}",
-        source,
+    environment.globals.update(
+        can=lambda permission: permission in permissions,
+        csrf_token=lambda: "csrf-token",
+        get_flashed_messages=lambda **_kwargs: [],
+        request=SimpleNamespace(endpoint="main.dashboard"),
+        session={
+            "user_id": 7,
+            "username": "operator",
+            "full_name": "测试用户",
+            "role": "legacy-display-only",
+        },
+        url_for=lambda endpoint, **_kwargs: f"/{endpoint}",
     )
-    return bool(
-        rule
-        and re.search(
-            rf"(?<![\w-]){re.escape(property_name)}\s*:\s*{re.escape(value)}\s*(?:;|$)",
-            rule.group("declarations"),
-        )
+    return environment.get_template("dashboard.html").render(workspace=_workspace())
+
+
+@pytest.mark.parametrize(
+    ("perspective", "permissions", "primary_action", "pending_kind", "alert_kind"),
+    (
+        (
+            "finance",
+            {"analysis.read", "analysis.export", "payment.read", "refund.read", "refund.approve", "audit.read"},
+            "refund-review",
+            "refunds",
+            "refunds",
+        ),
+        (
+            "knowledge",
+            {"knowledge.read", "knowledge.write", "knowledge.publish", "qa.read"},
+            "knowledge-manage",
+            "knowledge",
+            "knowledge",
+        ),
+        (
+            "qa",
+            {"knowledge.read", "qa.read", "qa.handle", "customer.read", "order.read", "payment.read", "refund.read"},
+            "ticket-handle",
+            "tickets",
+            "tickets",
+        ),
+        (
+            "model",
+            {"analysis.read", "analysis.run", "analysis.export", "model.read", "model.run", "customer.read", "product.read"},
+            "model-run",
+            "models",
+            "models",
+        ),
+        (
+            "administrator",
+            set(NAV_PERMISSIONS.values()) | {"refund.approve", "knowledge.write", "knowledge.publish", "model.run"},
+            "account-manage",
+            "all",
+            "tickets",
+        ),
+    ),
+)
+def test_dashboard_renders_authorized_role_workspace(
+    perspective, permissions, primary_action, pending_kind, alert_kind
+):
+    rendered = _render_dashboard(permissions)
+
+    visible_modules = set(re.findall(r'data-module="([^"]+)"', rendered))
+    expected_modules = {"dashboard"} | {
+        module for module, permission in NAV_PERMISSIONS.items() if permission in permissions
+    }
+    assert visible_modules == expected_modules, perspective
+    assert f'data-primary-action="{primary_action}"' in rendered
+    assert f'data-pending-kind="{pending_kind}"' in rendered
+    assert f'data-alert="{alert_kind}"' in rendered
+
+    for module, permission in NAV_PERMISSIONS.items():
+        if permission not in permissions:
+            assert f'data-module="{module}"' not in rendered
+
+
+def test_dashboard_does_not_render_unauthorized_operational_data():
+    rendered = _render_dashboard({"knowledge.read", "knowledge.write"})
+
+    assert 'data-alert="knowledge"' in rendered
+    assert "退款规则" in rendered
+    assert "RF-1001" not in rendered
+    assert "SKU-LOW" not in rendered
+    assert "如何申请退款" not in rendered
+    assert 'data-alert="refunds"' not in rendered
+    assert 'data-alert="low-stock"' not in rendered
+    assert 'data-alert="tickets"' not in rendered
+
+
+def test_dashboard_uses_compact_mobile_rows_and_normal_anchors():
+    source = (TEMPLATE_ROOT / "dashboard.html").read_text(encoding="utf-8")
+
+    Environment().parse(source)
+    assert "data-workspace-modules" in source
+    assert "@media (max-width:600px)" in source
+    assert "grid-template-columns:40px minmax(0,1fr) auto" in source
+    assert "min-height:56px" in source
+    assert ":focus-visible" in source
+    assert "100vh" not in source
+    assert "line-waves.js" not in source
+    assert "magic-bento.js" not in source
+    assert "onclick=" not in source
+    assert re.search(r'<a\b[^>]+href="\{\{ url_for\(', source)
+
+
+def test_dashboard_route_allows_authenticated_account_with_active_permissions(monkeypatch):
+    from app.routes import main
+
+    app = Flask(__name__, template_folder=str(TEMPLATE_ROOT))
+    app.secret_key = "test-secret"
+    app.add_url_rule("/login", endpoint="auth.login", view_func=lambda: "login")
+    app.register_blueprint(main.main_bp)
+    captured = {}
+
+    active_permissions = frozenset({"qa.read"})
+    monkeypatch.setattr(main, "account_permissions", lambda account_id: active_permissions)
+    monkeypatch.setattr(
+        main.DashboardRepository,
+        "workspace",
+        lambda permissions: captured.update(permissions=permissions) or _workspace(),
+        raising=False,
     )
+    monkeypatch.setattr(main, "render_template", lambda _name, **context: context["workspace"])
+
+    client = app.test_client()
+    assert client.get("/").status_code == 302
+
+    with client.session_transaction() as flask_session:
+        flask_session["user_id"] = 7
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert captured["permissions"] == active_permissions
 
 
-def _magic_bento_nav(template):
-    marker_pattern = re.compile(
-        r"(?<![\w:-])data-magic-bento(?=\s|=|$)"
-    )
-    attribute_pattern = re.compile(
-        r"(?<![\w:-])(?P<name>[\w:-]+)(?=\s|=|$)"
-        r"(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s]+))?",
-        re.DOTALL,
-    )
-    nav_pattern = re.compile(r"<nav\b(?P<attributes>[^>]*)>.*?</nav>", re.DOTALL)
+def test_base_navigation_includes_permission_gated_reports_and_governance():
+    source = (TEMPLATE_ROOT / "base.html").read_text(encoding="utf-8")
 
-    for match in nav_pattern.finditer(template):
-        attributes = attribute_pattern.finditer(match.group("attributes"))
-        if any(marker_pattern.fullmatch(attr.group("name")) for attr in attributes):
-            return match.group(0)
-
-    raise AssertionError("data-magic-bento must be an attribute on a nav element")
+    assert "session.get('role') ==" not in source
+    assert "url_for('reports.index')" in source
+    assert "can('analysis.read')" in source
+    for permission in ("system.manage", "audit.read", "model.read", "knowledge.read", "qa.read", "qa.handle"):
+        assert f"can('{permission}')" in source
 
 
-def test_dashboard_uses_accessible_magic_bento_navigation():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+def test_mobile_shell_keeps_workspace_in_the_first_viewport():
+    source = (TEMPLATE_ROOT / "base.html").read_text(encoding="utf-8")
 
-    Environment().parse(template)
-    assert _has_class(template, "home-topbar")
-    assert _has_class(template, "bento-section")
-    assert _has_class(template, "bento-grid")
-    assert not _has_class(template, "home-sidebar")
-    assert not _has_class(template, "shell-menu-toggle")
-    assert "event.key === 'Escape'" not in template
-
-    bento_nav = _magic_bento_nav(template)
-    assert 'aria-label="业务功能"' in bento_nav
-
-    for endpoint in (
-        "customers.index",
-        "products.index",
-        "orders.index",
-        "payments.index",
-        "refunds.index",
-        "algorithms.index",
-    ):
-        assert f"url_for('{endpoint}')" in bento_nav
-
-
-def test_dashboard_keeps_admin_bento_links_permission_gated():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-    bento_nav = _magic_bento_nav(template)
-    admin_guard = "{% if session.get('role') == 'admin' %}"
-    admin_end = "{% endif %}"
-
-    assert admin_guard in bento_nav
-    nav_before_guard, guarded_tail = bento_nav.split(admin_guard, 1)
-    assert admin_end in guarded_tail
-    guarded_content, nav_after_guard = guarded_tail.split(admin_end, 1)
-    nav_without_guarded_block = nav_before_guard + nav_after_guard
-
-    for endpoint in ("imports.index", "custom_query.custom_query_page"):
-        route_reference = f"url_for('{endpoint}')"
-        assert bento_nav.count(route_reference) == 1
-        assert route_reference in guarded_content
-        assert route_reference not in nav_without_guarded_block
-
-
-def test_dashboard_hero_uses_black_text_on_a_light_surface():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-
-    assert "--hero-ink:#000;" in template
-    assert "--hero-line:rgba(0,0,0,.24);" in template
-    assert _selector_has_declaration(template, ".hero", "color", "var(--hero-ink)")
-    assert _selector_has_declaration(
-        template,
-        ".hero-shade",
-        "background",
-        "rgba(247,248,246,.72)",
-    )
-    assert _selector_has_declaration(template, ".hero-note", "color", "var(--hero-ink)")
-    assert _selector_has_declaration(
-        template,
-        ".hero-metrics",
-        "border-top",
-        "1px solid var(--hero-line)",
-    )
-    assert _selector_has_declaration(
-        template,
-        ".hero-metric + .hero-metric",
-        "border-left",
-        "1px solid var(--hero-line)",
-    )
-    assert _selector_has_declaration(
-        template,
-        ".hero-metric small",
-        "color",
-        "var(--hero-ink)",
-    )
-    for selector in (
-        ".hero-metric:nth-child(3) strong",
-        ".hero-metric:nth-child(4) strong",
-    ):
-        assert _selector_has_declaration(template, selector, "color", "var(--hero-ink)")
-    for selector in (
-        ".hero-metric:nth-child(3)",
-        ".hero-metric:nth-child(4)",
-    ):
-        assert _selector_has_declaration(
-            template,
-            selector,
-            "border-top",
-            "1px solid var(--hero-line)",
-        )
-
-
-def test_mobile_hero_limits_density_and_viewport_shift():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-
-    assert re.search(
-        r"<h2\b[^>]*(?<![\w:-])id\s*=\s*(['\"])bento-title\1[^>]*>",
-        template,
-        re.DOTALL,
-    )
-    for selector in (".bento-section", "#bento-title"):
-        assert _selector_has_declaration(
-            template,
-            selector,
-            "scroll-margin-top",
-            "56px",
-        )
-    assert "100dvh" in template
-    assert "100vh" not in template
-    assert "min-height:520px" in template
-    assert ".hero-title span:nth-child(2),.hero-title span:nth-child(3) { display:inline" in template
-    assert ".hero-title span:nth-child(2) { transform" not in template
-    assert ".hero-title span:nth-child(3) { transform" not in template
-    assert "font-size:108px" not in template
-    assert 'fetchpriority="high"' in template
-    assert "—" not in template
-    assert "–" not in template
-
-
-def test_dashboard_integrates_line_waves_with_safe_fallbacks():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-    script = (ROOT / "app" / "static" / "js" / "line-waves.js").read_text(encoding="utf-8")
-
-    assert "data-line-waves" in template
-    assert "js/line-waves.js" in template
-    assert "hero-media" in template
-    assert "getContext('webgl'" in script
-    assert "compileShader" in script
-    assert "gl.drawArrays(gl.TRIANGLES, 0, 3)" in script
-    assert "cdn.jsdelivr.net/npm/ogl" not in script
-    assert "prefers-reduced-motion" in script
-    assert "Math.min(window.devicePixelRatio || 1, 1.5)" in script
-    assert "ResizeObserver" in script
-    assert "IntersectionObserver" in script
-    assert "visibilitychange" in script
-
-
-def test_dashboard_magic_bento_enhancement_is_optional_and_motion_safe():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-    script_path = ROOT / "app" / "static" / "js" / "magic-bento.js"
-
-    assert "js/magic-bento.js" in template
-    assert script_path.exists()
-    script = script_path.read_text(encoding="utf-8")
-
-    for behavior in (
-        "requestAnimationFrame",
-        "prefers-reduced-motion",
-        "(pointer: fine)",
-        "--glow-x",
-        "--glow-y",
-        "--glow-intensity",
-        "bento-particle",
-        "pagehide",
-        "pageshow",
-        "pointercancel",
-        "event.persisted",
-        "cancelAnimationFrame",
-        "removeEventListener",
-    ):
-        assert behavior in script
-
-
-def test_dashboard_magic_bento_lifecycle_behavior():
-    behavior_test = ROOT / "tests" / "magic_bento_lifecycle.test.cjs"
-
-    try:
-        result = subprocess.run(
-            ["node", "--test", str(behavior_test)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-    except FileNotFoundError as error:
-        raise AssertionError("Node.js is required for the Magic Bento lifecycle test") from error
-
-    assert result.returncode == 0, (
-        "Magic Bento lifecycle test failed\n"
-        f"stdout:\n{result.stdout}\n"
-        f"stderr:\n{result.stderr}"
-    )
-
-
-def test_dashboard_magic_bento_matches_reference_grid_and_glow_language():
-    template = (ROOT / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
-
-    for reference_style in (
-        "--bento-purple-rgb:132,0,255",
-        "--glow-radius:200px",
-        "padding:6px",
-        "grid-row:span 2",
-        "width:800px",
-        "height:800px",
-        "border-radius:50%",
-        "mix-blend-mode:screen",
-    ):
-        assert reference_style in template
-
-    assert ".bento-card--wide { grid-column:span 2; grid-row:span 2; min-height:376px" in template
-    assert ".bento-card--admin { grid-column:span 2" in template
-    assert "background:rgba(var(--bento-purple-rgb),.9)" in template
+    assert "min-height:100dvh" in source
+    assert "overflow-x:auto" in source
+    assert ".nav-label{display:none}" in source

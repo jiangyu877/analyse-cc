@@ -1,497 +1,245 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>零售交易分析平台</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <style>
-    :root {
-      --home-bg:#151719;
-      --home-surface:#1d2022;
-      --home-line:rgba(255,255,255,.16);
-      --home-text:#f6f5f0;
-      --home-muted:#b8bab7;
-      --home-green:#64d5a4;
-      --home-yellow:#f0c75e;
-      --hero-ink:#000;
-      --hero-line:rgba(0,0,0,.24);
-      --bento-surface:#120f17;
-      --bento-surface-raised:#17131c;
-      --bento-border:#2f293a;
-      --bento-text:#f6f5f0;
-      --bento-muted:#aaa4b2;
-      --bento-purple:#8400ff;
-      --bento-purple-rgb:132,0,255;
-      --bento-mint:#64d5a4;
-    }
-    * { box-sizing:border-box; }
-    html { scroll-behavior:smooth; }
-    body { margin:0; overflow-x:hidden; background:var(--home-bg); color:var(--home-text); font-family:"Segoe UI","Microsoft YaHei UI",Arial,sans-serif; }
-    a { color:inherit; }
-    button { font:inherit; }
+{% extends "base.html" %}
+{% block title %}工作台 - 零售交易分析平台{% endblock %}
 
-    .home-topbar {
-      position:sticky;
-      top:0;
-      z-index:30;
-      height:56px;
-      display:flex;
-      align-items:center;
-      gap:24px;
-      padding:0 18px;
-      border-bottom:1px solid var(--home-line);
-      background:#111315;
-    }
-    .brand { display:flex; align-items:center; gap:10px; flex:0 0 auto; text-decoration:none; font-weight:700; }
-    .brand-mark { width:27px; height:27px; border:7px solid var(--home-text); border-right-color:transparent; border-radius:50%; transform:rotate(-38deg); }
-    .brand-copy { display:flex; flex-direction:column; gap:1px; }
-    .brand-copy strong { font-size:14px; letter-spacing:0; }
-    .brand-copy span { color:var(--home-muted); font-size:10px; font-weight:500; }
-    .topbar-links { display:flex; align-items:center; gap:2px; height:100%; }
-    .topbar-link { display:flex; align-items:center; height:100%; padding:0 12px; color:var(--home-muted); text-decoration:none; font-size:12px; font-weight:600; border-bottom:2px solid transparent; }
-    .topbar-link:hover,.topbar-link.active { color:var(--home-text); border-bottom-color:var(--home-green); }
-    .topbar-actions { display:flex; align-items:center; gap:10px; margin-left:auto; }
-    .user-meta { color:var(--home-muted); font-size:11px; white-space:nowrap; }
-    .topbar-icon-button {
-      width:36px;
-      height:36px;
-      display:grid;
-      place-items:center;
-      border:1px solid var(--home-line);
-      border-radius:6px;
-      background:transparent;
-      color:var(--home-text);
-      padding:0;
-      cursor:pointer;
-    }
-    .topbar-icon-button:hover { border-color:var(--home-green); color:var(--home-green); }
-    .topbar-icon-button:active { transform:translateY(1px); }
-    .topbar-icon-button i { font-size:19px; }
+{% block extra_head %}
+<style>
+  .workspace { display:grid; gap:16px; }
+  .identity-band {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    min-height:76px;
+    padding:14px 18px;
+    border:1px solid var(--line);
+    border-left:4px solid var(--brand);
+    border-radius:6px;
+    background:var(--surface);
+  }
+  .identity-copy { min-width:0; }
+  .identity-copy h1 { margin:0; font-size:21px; line-height:1.25; letter-spacing:0; }
+  .identity-copy p { margin:5px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
+  .primary-action { flex:0 0 auto; white-space:nowrap; }
+  .primary-action:focus-visible,
+  .workspace-module:focus-visible,
+  .attention-link:focus-visible { outline:3px solid rgba(19,121,91,.32); outline-offset:2px; }
 
-    .hero {
-      height:calc(100dvh - 92px);
-      min-height:620px;
-      max-height:900px;
-      margin:18px;
-      position:relative;
-      overflow:hidden;
-      border-radius:8px;
-      isolation:isolate;
-      background:#080a0b;
-      color:var(--hero-ink);
-    }
-    .hero-media {
-      position:absolute;
-      inset:-20px;
-      width:calc(100% + 40px);
-      height:calc(100% + 40px);
-      object-fit:cover;
-      object-position:center;
-      filter:brightness(.16) saturate(.52) contrast(1.08) blur(2px);
-      z-index:-3;
-    }
-    .hero-shade { position:absolute; inset:0; background:rgba(247,248,246,.72); z-index:-2; }
-    .hero-waves { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; opacity:.96; }
-    .hero-waves canvas { display:block; width:100%; height:100%; mix-blend-mode:screen; }
-    .topbar-icon-button:focus-visible,.topbar-link:focus-visible { outline:2px solid var(--home-green); outline-offset:2px; }
+  .workspace-overview { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(270px,.55fr); gap:16px; align-items:start; }
+  .kpi-strip {
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:var(--surface);
+  }
+  .kpi { min-width:0; padding:14px 16px; }
+  .kpi + .kpi { border-left:1px solid var(--line); }
+  .kpi-label { color:var(--muted); font-size:11px; line-height:1.35; }
+  .kpi-value { margin-top:5px; font-size:23px; font-weight:720; line-height:1.15; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .kpi-note { margin-top:4px; color:var(--muted); font-size:11px; }
 
-    .corner-shape { position:absolute; pointer-events:none; z-index:1; }
-    .corner-shape.top {
-      width:164px;
-      height:164px;
-      left:-32px;
-      top:86px;
-      border:40px solid var(--home-text);
-      border-right-color:transparent;
-      border-bottom-color:transparent;
-      border-radius:50%;
-      transform:rotate(-35deg);
-    }
-    .corner-shape.bottom {
-      width:170px;
-      height:170px;
-      right:-34px;
-      bottom:-30px;
-      border:40px solid var(--home-text);
-      border-left-color:transparent;
-      border-top-color:transparent;
-      border-radius:50%;
-      transform:rotate(-20deg);
-    }
+  .pending-panel { min-height:100%; padding:14px 16px; border:1px solid var(--line); border-radius:6px; background:#eef7f3; }
+  .pending-label { color:#43544e; font-size:12px; font-weight:650; }
+  .pending-value { margin-top:5px; color:var(--brand-dark); font-size:30px; font-weight:750; line-height:1; font-variant-numeric:tabular-nums; }
+  .pending-note { margin-top:8px; color:#52645d; font-size:11px; line-height:1.45; }
 
-    .hero-copy {
-      position:absolute;
-      left:12%;
-      top:25%;
-      width:min(680px,62%);
-      display:flex;
-      flex-direction:column;
-      gap:18px;
-      align-items:flex-start;
-      z-index:2;
-    }
-    .hero-kicker { max-width:330px; font-size:15px; line-height:1.6; font-weight:650; }
-    .hero-kicker::before { content:""; display:block; width:30px; height:3px; background:var(--home-green); margin-bottom:13px; }
-    .hero-title { margin:0; font-family:"Arial Narrow","Roboto Condensed","Microsoft YaHei UI",sans-serif; font-size:88px; line-height:.94; font-weight:900; letter-spacing:0; }
-    .hero-title span { display:block; white-space:nowrap; }
-    .hero-title span:nth-child(2),.hero-title span:nth-child(3) { display:inline; }
-    .hero-note {
-      width:min(520px,100%);
-      margin:0;
-      color:var(--hero-ink);
-      font-size:14px;
-      line-height:1.65;
-    }
+  .section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 8px; }
+  .section-heading h2 { margin:0; font-size:15px; letter-spacing:0; }
+  .section-heading span { color:var(--muted); font-size:11px; }
+  .attention-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .attention-group { min-width:0; border:1px solid var(--line); border-radius:6px; background:var(--surface); }
+  .attention-head { display:flex; align-items:center; justify-content:space-between; min-height:42px; padding:9px 12px; border-bottom:1px solid var(--line); }
+  .attention-head strong { display:flex; align-items:center; gap:8px; min-width:0; font-size:13px; }
+  .attention-head i { color:var(--brand); font-size:18px; }
+  .attention-count { min-width:24px; padding:2px 6px; border-radius:4px; background:#e7ecef; color:#3d4750; text-align:center; font-size:11px; font-variant-numeric:tabular-nums; }
+  .attention-list { margin:0; padding:0; list-style:none; }
+  .attention-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:10px; min-height:44px; padding:8px 12px; }
+  .attention-row + .attention-row { border-top:1px solid #edf0f2; }
+  .attention-main { min-width:0; overflow:hidden; color:var(--ink); font-size:12px; font-weight:620; text-overflow:ellipsis; white-space:nowrap; }
+  .attention-meta { color:var(--muted); font-size:11px; white-space:nowrap; }
+  .attention-empty { min-height:44px; padding:12px; color:var(--muted); font-size:12px; }
+  .attention-link { color:var(--brand-dark); text-decoration:none; }
+  .attention-link:hover { text-decoration:underline; }
 
-    .hero-metrics {
-      position:absolute;
-      left:34px;
-      right:34px;
-      bottom:22px;
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      border-top:1px solid var(--hero-line);
-      z-index:2;
-    }
-    .hero-metric { padding:14px 16px 4px 0; min-width:0; }
-    .hero-metric + .hero-metric { border-left:1px solid var(--hero-line); padding-left:18px; }
-    .hero-metric small { display:block; color:var(--hero-ink); font-size:11px; margin-bottom:4px; }
-    .hero-metric strong { display:block; font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .hero-metric:nth-child(3) strong { color:var(--hero-ink); }
-    .hero-metric:nth-child(4) strong { color:var(--hero-ink); }
+  .workspace-modules { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+  .workspace-module {
+    display:grid;
+    grid-template-columns:36px minmax(0,1fr) 20px;
+    align-items:center;
+    gap:10px;
+    min-width:0;
+    min-height:70px;
+    padding:10px 12px;
+    border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    background:var(--surface);
+    color:var(--ink);
+    text-decoration:none;
+  }
+  .workspace-module:hover { background:#f7faf8; color:var(--brand-dark); }
+  .workspace-module > i:first-child { display:grid; place-items:center; width:34px; height:34px; border-radius:6px; background:#e9f4ef; color:var(--brand); font-size:19px; }
+  .module-copy { min-width:0; }
+  .module-copy strong { display:block; overflow:hidden; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+  .module-copy small { display:block; overflow:hidden; margin-top:2px; color:var(--muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+  .workspace-module > i:last-child { color:#89939e; font-size:17px; }
 
-    .bento-section { position:relative; scroll-margin-top:56px; max-width:1480px; margin:0 auto; padding:42px 42px 18px; user-select:none; }
-    #bento-title { scroll-margin-top:56px; }
-    .bento-heading { display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:22px; }
-    .bento-heading h2 { margin:0; font-size:38px; line-height:1.05; letter-spacing:0; }
-    .bento-heading p { margin:0; color:var(--bento-muted); font-size:13px; line-height:1.5; }
-    .bento-grid {
-      position:relative;
-      isolation:isolate;
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      grid-auto-rows:minmax(184px,auto);
-      grid-auto-flow:dense;
-      gap:8px;
-    }
-    .bento-card {
-      --glow-x:50%;
-      --glow-y:50%;
-      --glow-intensity:0;
-      --glow-radius:200px;
-      position:relative;
-      z-index:1;
-      min-width:0;
-      min-height:184px;
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      justify-content:space-between;
-      gap:28px;
-      padding:24px;
-      border:1px solid var(--bento-border);
-      border-radius:8px;
-      background:var(--bento-surface);
-      color:var(--bento-text);
-      text-decoration:none;
-      transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background-color .18s ease;
-    }
-    .bento-card::after {
-      content:"";
-      position:absolute;
-      inset:0;
-      z-index:3;
-      padding:6px;
-      border-radius:8px;
-      background:radial-gradient(var(--glow-radius) circle at var(--glow-x) var(--glow-y),rgba(var(--bento-purple-rgb),calc(var(--glow-intensity) * .8)) 0%,rgba(var(--bento-purple-rgb),calc(var(--glow-intensity) * .4)) 30%,transparent 60%);
-      pointer-events:none;
-      -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-      -webkit-mask-composite:xor;
-      mask-composite:exclude;
-    }
-    .bento-card:hover,.bento-card:focus-visible {
-      --glow-intensity:1;
-      transform:translateY(-2px);
-      border-color:rgba(var(--bento-purple-rgb),.8);
-      box-shadow:0 4px 20px rgba(46,24,78,.4),0 0 30px rgba(var(--bento-purple-rgb),.2);
-    }
-    .bento-card:focus-visible { outline:2px solid var(--bento-mint); outline-offset:3px; }
-    .bento-card__top { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
-    .bento-card__icon { color:var(--bento-mint); font-size:25px; line-height:1; }
-    .bento-card__arrow { color:var(--bento-muted); font-size:20px; transition:transform .18s ease,color .18s ease; }
-    .bento-card:hover .bento-card__arrow,.bento-card:focus-visible .bento-card__arrow { color:var(--bento-mint); transform:translate(2px,-2px); }
-    .bento-card__content { display:flex; flex-direction:column; align-items:flex-start; gap:7px; min-width:0; }
-    .bento-card__eyebrow { color:var(--bento-muted); font-size:11px; font-weight:650; line-height:1.35; }
-    .bento-card__title { font-size:22px; font-weight:720; line-height:1.15; }
-    .bento-card__description { max-width:36ch; color:var(--bento-muted); font-size:12px; line-height:1.6; }
-    .bento-card--feature {
-      grid-column:span 2;
-      grid-row:span 2;
-      min-height:376px;
-      background-color:var(--bento-surface-raised);
-      background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-      background-size:24px 24px;
-    }
-    .bento-card--feature .bento-card__title { font-size:28px; }
-    .bento-card--wide { grid-column:span 2; grid-row:span 2; min-height:376px;
-      background:linear-gradient(135deg,rgba(100,213,164,.09),rgba(18,15,23,.98) 62%);
-    }
-    .bento-card--adaptive { grid-column:span 1; }
-    .bento-card--admin { grid-column:span 2; background:var(--bento-surface-raised); }
-    .bento-spotlight {
-      position:absolute;
-      left:0;
-      top:0;
-      z-index:0;
-      width:800px;
-      height:800px;
-      border-radius:50%;
-      background:radial-gradient(circle,rgba(var(--bento-purple-rgb),.15) 0%,rgba(var(--bento-purple-rgb),.08) 15%,rgba(var(--bento-purple-rgb),.04) 25%,rgba(var(--bento-purple-rgb),.02) 40%,rgba(var(--bento-purple-rgb),.01) 65%,transparent 70%);
-      opacity:0;
-      pointer-events:none;
-      transform:translate3d(-50%,-50%,0);
-      transition:opacity .16s ease;
-      will-change:transform,opacity;
-      mix-blend-mode:screen;
-    }
-    .bento-spotlight.is-visible { opacity:1; }
-    .bento-particle {
-      --particle-x:0px;
-      --particle-y:-18px;
-      position:absolute;
-      z-index:4;
-      width:4px;
-      height:4px;
-      border-radius:4px;
-      background:rgba(var(--bento-purple-rgb),.9);
-      box-shadow:0 0 6px rgba(var(--bento-purple-rgb),.6);
-      pointer-events:none;
-      animation:bento-particle-burst 520ms cubic-bezier(.22,.72,.3,1) forwards;
-    }
-    @keyframes bento-particle-burst {
-      0% { opacity:.9; transform:translate3d(0,0,0) scale(1); }
-      100% { opacity:0; transform:translate3d(var(--particle-x),var(--particle-y),0) scale(.35); }
-    }
+  .orders-compact { border:1px solid var(--line); border-radius:6px; background:var(--surface); overflow:hidden; }
+  .orders-compact .table { margin:0; }
 
-    .home-content { max-width:1480px; margin:0 auto; padding:34px 42px 72px; }
-    .section-head { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:28px; }
-    .section-head h2 { margin:0; font-size:42px; line-height:1; letter-spacing:0; }
-    .section-head p { max-width:420px; margin:0; color:var(--home-muted); font-size:13px; line-height:1.6; }
-    .operations-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr); border-top:1px solid var(--home-line); border-bottom:1px solid var(--home-line); }
-    .trend-panel { min-width:0; padding:28px 34px 28px 0; border-right:1px solid var(--home-line); }
-    .orders-panel { min-width:0; padding:28px 0 28px 34px; }
-    .panel-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; font-size:14px; font-weight:650; }
-    .panel-title span { color:var(--home-muted); font-size:11px; font-weight:500; }
-    .panel-title a { color:var(--home-green); font-size:12px; text-decoration:none; }
-    .chart-wrap { height:300px; }
-    .orders-table { width:100%; border-collapse:collapse; }
-    .orders-table th { color:var(--home-muted); font-size:10px; font-weight:600; text-align:left; padding:0 8px 10px 0; }
-    .orders-table td { border-top:1px solid var(--home-line); padding:12px 8px 12px 0; font-size:12px; }
-    .orders-table td:nth-child(3) { font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap; }
-    .order-status { display:inline-block; color:var(--home-green); }
-    .empty { color:var(--home-muted); text-align:center; padding:30px 0 !important; }
-    .module-links { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:34px; border-top:1px solid var(--home-line); }
-    .module-link { display:flex; justify-content:space-between; align-items:center; padding:20px 18px 20px 0; color:var(--home-text); text-decoration:none; font-size:14px; border-bottom:1px solid var(--home-line); }
-    .module-link + .module-link { border-left:1px solid var(--home-line); padding-left:18px; }
-    .module-link i { color:var(--home-muted); font-size:18px; }
-    .module-link:hover { color:var(--home-green); }
+  @media (max-width:1000px) {
+    .workspace-overview { grid-template-columns:1fr; }
+    .workspace-modules { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:760px) {
+    .kpi-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .kpi:nth-child(3) { border-left:0; border-top:1px solid var(--line); }
+    .kpi:nth-child(4) { border-top:1px solid var(--line); }
+    .attention-grid { grid-template-columns:1fr; }
+  }
+  @media (max-width:600px) {
+    .workspace { gap:12px; }
+    .identity-band { align-items:flex-start; min-height:0; padding:12px; }
+    .identity-copy h1 { font-size:18px; }
+    .primary-action { min-height:38px; padding-left:10px; padding-right:10px; }
+    .workspace-modules { grid-template-columns:1fr; }
+    .workspace-module { grid-template-columns:40px minmax(0,1fr) auto; min-height:56px; padding:7px 10px; }
+    .workspace-module > i:first-child { width:32px; height:32px; }
+    .module-copy small { display:none; }
+  }
+  @media (max-width:420px) {
+    .identity-band { flex-direction:column; }
+    .primary-action { width:100%; }
+    .kpi { padding:11px 12px; }
+    .kpi-value { font-size:20px; }
+  }
+</style>
+{% endblock %}
 
-    @media(min-width:600px) and (max-width:1023px) {
-      .bento-grid { grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:auto; }
-      .bento-card--feature,.bento-card--wide { grid-column:span 2; grid-row:span 1; }
-      .bento-card--feature,.bento-card--wide { min-height:224px; }
-      .bento-card--adaptive,.bento-card--admin { grid-column:span 1; }
-    }
-    @media(max-width:1100px) {
-      .hero-copy { left:10%; top:24%; width:min(600px,68%); }
-      .hero-title { font-size:68px; }
-    }
-    @media(max-width:900px) {
-      .home-topbar { gap:12px; padding:0 12px; }
-      .topbar-links { display:none; }
-      .user-meta { display:none; }
-    }
-    @media(max-width:800px) {
-      .hero { height:calc(100dvh - 76px); min-height:520px; max-height:720px; margin:10px; }
-      .corner-shape.top { display:none; }
-      .corner-shape.bottom { width:118px; height:118px; border-width:28px; }
-      .hero-copy { left:20px; top:112px; width:calc(100% - 40px); gap:11px; align-items:flex-start; }
-      .hero-kicker { width:auto; font-size:13px; line-height:1.5; }
-      .hero-kicker::before { margin-bottom:9px; }
-      .hero-title { font-size:44px; line-height:.94; }
-      .hero-note { width:min(360px,100%); font-size:12px; line-height:1.55; }
-      .hero-metrics { left:20px; right:20px; bottom:16px; grid-template-columns:repeat(2,minmax(0,1fr)); }
-      .hero-metric { padding:10px 8px 5px 0; }
-      .hero-metric + .hero-metric { padding-left:12px; }
-      .hero-metric:nth-child(3) { border-left:0; padding-left:0; border-top:1px solid var(--hero-line); }
-      .hero-metric:nth-child(4) { border-top:1px solid var(--hero-line); }
-      .hero-metric strong { font-size:18px; }
-      .bento-section { padding:34px 20px 12px; }
-      .home-content { padding:34px 20px 60px; }
-      .section-head { align-items:flex-start; flex-direction:column; }
-      .section-head h2 { font-size:32px; }
-      .operations-grid { grid-template-columns:1fr; }
-      .trend-panel { border-right:0; border-bottom:1px solid var(--home-line); padding:24px 0; }
-      .orders-panel { padding:24px 0; }
-      .module-links { grid-template-columns:repeat(2,minmax(0,1fr)); }
-      .module-link:nth-child(3) { border-left:0; padding-left:0; }
-    }
-    @media(max-width:599px) {
-      .bento-heading h2 { font-size:32px; }
-      .bento-grid { grid-template-columns:minmax(0,1fr); grid-auto-rows:auto; }
-      .bento-card,.bento-card--feature,.bento-card--wide { grid-column:auto; grid-row:auto; min-height:184px; }
-      .bento-card--adaptive,.bento-card--admin { grid-column:auto; }
-      .bento-card { gap:24px; padding:20px; }
-      .bento-card--feature .bento-card__title { font-size:24px; }
-    }
-    @media(max-width:480px) {
-      .brand-copy span { display:none; }
-      .hero-copy { left:18px; top:104px; width:calc(100% - 36px); }
-      .hero-title { font-size:40px; }
-      .hero-metrics { left:18px; right:18px; bottom:12px; }
-      .hero-metric strong { font-size:16px; }
-      .module-links { grid-template-columns:1fr; }
-      .module-link + .module-link { border-left:0; padding-left:0; }
-    }
-    @media(pointer:coarse) {
-      .bento-card,.bento-card::after,.bento-card__arrow { transition:none; animation:none; }
-      .bento-card:hover,.bento-card:focus-visible,.bento-card:hover .bento-card__arrow,.bento-card:focus-visible .bento-card__arrow { transform:none; }
-      .bento-spotlight,.bento-particle { display:none !important; animation:none !important; }
-    }
-    @media(prefers-reduced-motion:reduce) {
-      html { scroll-behavior:auto; }
-      .hero-waves { opacity:.58; }
-      .bento-card,.bento-card::after,.bento-card__arrow,.bento-spotlight { transition:none; }
-      .bento-card:hover,.bento-card:focus-visible,.bento-card:hover .bento-card__arrow,.bento-card:focus-visible .bento-card__arrow { transform:none; }
-      .bento-spotlight,.bento-particle { display:none !important; animation:none !important; transform:none !important; }
-    }
-  </style>
-</head>
-<body>
-  <header class="home-topbar">
-    <a class="brand" href="{{ url_for('main.dashboard') }}">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-copy"><strong>RETAIL PULSE</strong><span>零售交易分析平台</span></span>
-    </a>
-    <nav class="topbar-links" aria-label="常用入口">
-      <a class="topbar-link active" href="{{ url_for('main.dashboard') }}" aria-current="page">经营总览</a>
-      <a class="topbar-link" href="{{ url_for('customers.index') }}">客户分析</a>
-      <a class="topbar-link" href="{{ url_for('algorithms.index') }}">模型任务</a>
-    </nav>
-    <div class="topbar-actions">
-      <span class="user-meta">{{ session.get('full_name') or session.get('username') }} · {{ session.get('role') }}</span>
-      <form method="post" action="{{ url_for('auth.logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="topbar-icon-button" type="submit" aria-label="退出登录" title="退出登录"><i class="ti ti-logout" aria-hidden="true"></i></button>
-      </form>
+{% macro module_link(endpoint, icon, title, description) -%}
+<a class="workspace-module" data-workspace-module href="{{ url_for(endpoint) }}">
+  <i class="ti {{ icon }}" aria-hidden="true"></i>
+  <span class="module-copy"><strong>{{ title }}</strong><small>{{ description }}</small></span>
+  <i class="ti ti-chevron-right" aria-hidden="true"></i>
+</a>
+{%- endmacro %}
+
+{% block content %}
+<div class="workspace">
+  <header class="identity-band">
+    <div class="identity-copy">
+      <h1>{{ session.get('full_name') or session.get('username') }}的工作台</h1>
+      <p>只显示当前账号有权访问的数据、提醒与操作。</p>
     </div>
+    {% if can('system.manage') %}
+      <a class="btn btn-primary primary-action" data-primary-action="account-manage" href="{{ url_for('admin.accounts') }}"><i class="ti ti-user-shield"></i> 管理账号</a>
+    {% elif can('qa.handle') %}
+      <a class="btn btn-primary primary-action" data-primary-action="ticket-handle" href="{{ url_for('qa.tickets') }}"><i class="ti ti-ticket"></i> 处理工单</a>
+    {% elif can('knowledge.write') or can('knowledge.publish') %}
+      <a class="btn btn-primary primary-action" data-primary-action="knowledge-manage" href="{{ url_for('knowledge.index') }}"><i class="ti ti-file-upload"></i> 维护知识</a>
+    {% elif can('model.run') %}
+      <a class="btn btn-primary primary-action" data-primary-action="model-run" href="{{ url_for('algorithms.index') }}"><i class="ti ti-player-play"></i> 运行模型</a>
+    {% elif can('refund.approve') %}
+      <a class="btn btn-primary primary-action" data-primary-action="refund-review" href="{{ url_for('refunds.index') }}"><i class="ti ti-checkup-list"></i> 审核退款</a>
+    {% elif can('analysis.read') %}
+      <a class="btn btn-primary primary-action" data-primary-action="report-view" href="{{ url_for('reports.index') }}"><i class="ti ti-report-analytics"></i> 查看报表</a>
+    {% elif can('qa.read') %}
+      <a class="btn btn-primary primary-action" data-primary-action="qa-open" href="{{ url_for('qa.chat') }}"><i class="ti ti-message-chatbot"></i> 打开 QA</a>
+    {% endif %}
   </header>
 
-  <section class="hero" aria-labelledby="home-title">
-    <img class="hero-media" src="{{ url_for('static', filename='images/retail-hero-processed.jpg') }}" alt="餐饮零售消费场景" fetchpriority="high" decoding="async">
-    <div class="hero-shade"></div>
-    <div class="hero-waves" data-line-waves data-speed="0.3" data-inner-lines="32" data-outer-lines="36" data-warp="1" data-rotation="-45" data-brightness="0.34" data-color-1="#f6f5f0" data-color-2="#64d5a4" data-color-3="#f6f5f0" data-mouse-influence="1.35" aria-hidden="true"></div>
-    <div class="corner-shape top" aria-hidden="true"></div>
-    <div class="corner-shape bottom" aria-hidden="true"></div>
-
-    <div class="hero-copy">
-      <div class="hero-kicker">让每一笔交易<br>成为下一次增长的清晰信号。</div>
-      <h1 class="hero-title" id="home-title"><span>零售数据</span><span>洞察与</span><span>增长</span></h1>
-      <p class="hero-note">汇总客户、商品和订单，快速识别价值客户、经营风险与增长机会。</p>
-    </div>
-
-    <div class="hero-metrics" aria-label="核心经营指标">
-      <div class="hero-metric"><small>活跃客户</small><strong>{{ '{:,}'.format(summary.customer_count) }}</strong></div>
-      <div class="hero-metric"><small>本月订单</small><strong>{{ '{:,}'.format(summary.month_orders) }}</strong></div>
-      <div class="hero-metric"><small>本月净交易额</small><strong>¥ {{ '{:,.0f}'.format(summary.month_net_amount|float) }}</strong></div>
-      <div class="hero-metric"><small>低库存商品</small><strong>{{ summary.low_stock_count }}</strong></div>
-    </div>
-  </section>
-
-  <section class="bento-section" aria-labelledby="bento-title">
-    <header class="bento-heading">
-      <h2 id="bento-title">业务功能</h2>
-      <p>客户、商品、交易与模型</p>
-    </header>
-    <nav class="bento-grid {{ 'bento-grid--admin' if session.get('role') == 'admin' else '' }}" data-magic-bento aria-label="业务功能">
-      <a class="bento-card bento-card--standard" data-bento-card href="{{ url_for('customers.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-users"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">客户洞察</span><span class="bento-card__title">客户 360</span><span class="bento-card__description">识别高价值客户、活跃度与消费特征。</span></span>
-      </a>
-      <a class="bento-card bento-card--standard" data-bento-card href="{{ url_for('products.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-package"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">商品经营</span><span class="bento-card__title">商品库存</span><span class="bento-card__description">掌握商品表现、库存水平与缺货风险。</span></span>
-      </a>
-      <a class="bento-card bento-card--feature" data-bento-card href="{{ url_for('algorithms.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-chart-dots-3"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">智能分析</span><span class="bento-card__title">算法任务</span><span class="bento-card__description">运行客户聚类、销量预测与商品关联分析。</span></span>
-      </a>
-      <a class="bento-card bento-card--wide" data-bento-card href="{{ url_for('orders.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-receipt"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">交易管理</span><span class="bento-card__title">订单业务</span><span class="bento-card__description">查看订单状态、交易明细与履约过程。</span></span>
-      </a>
-      <a class="bento-card bento-card--adaptive" data-bento-card href="{{ url_for('payments.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-credit-card"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">资金记录</span><span class="bento-card__title">支付记录</span><span class="bento-card__description">核对支付流水、金额与交易时间。</span></span>
-      </a>
-      <a class="bento-card bento-card--adaptive" data-bento-card href="{{ url_for('refunds.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-cash-banknote-off"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">售后管理</span><span class="bento-card__title">退款管理</span><span class="bento-card__description">追踪退款原因、处理状态与净交易影响。</span></span>
-      </a>
-      {% if session.get('role') == 'admin' %}
-      <a class="bento-card bento-card--standard bento-card--admin" data-bento-card href="{{ url_for('imports.index') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-database-import"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">数据管理</span><span class="bento-card__title">数据导入</span><span class="bento-card__description">导入业务数据并更新经营分析口径。</span></span>
-      </a>
-      <a class="bento-card bento-card--standard bento-card--admin" data-bento-card href="{{ url_for('custom_query.custom_query_page') }}">
-        <span class="bento-card__top" aria-hidden="true"><i class="bento-card__icon ti ti-database-search"></i><i class="bento-card__arrow ti ti-arrow-up-right"></i></span>
-        <span class="bento-card__content"><span class="bento-card__eyebrow">数据查询</span><span class="bento-card__title">只读 SQL</span><span class="bento-card__description">执行受控查询并核验数据库事实。</span></span>
-      </a>
+  <section class="workspace-overview" aria-label="工作概览">
+    <div class="kpi-strip">
+      {% if can('analysis.read') %}
+      <div class="kpi"><div class="kpi-label">活跃客户</div><div class="kpi-value">{{ '{:,}'.format(workspace.summary.customer_count|default(0, true)) }}</div><div class="kpi-note">当前有效账户</div></div>
+      <div class="kpi"><div class="kpi-label">本月订单</div><div class="kpi-value">{{ '{:,}'.format(workspace.summary.month_orders|default(0, true)) }}</div><div class="kpi-note">ADS 当前快照</div></div>
+      <div class="kpi"><div class="kpi-label">本月净收入</div><div class="kpi-value">¥{{ '{:,.2f}'.format(workspace.summary.month_net_amount|default(0, true)) }}</div><div class="kpi-note">扣除退款后</div></div>
       {% endif %}
-      <span class="bento-spotlight" aria-hidden="true"></span>
+      {% if can('product.read') %}
+      <div class="kpi"><div class="kpi-label">低库存商品</div><div class="kpi-value">{{ workspace.alerts.low_stock.count|default(0, true) }}</div><div class="kpi-note">库存少于 10</div></div>
+      {% endif %}
+      {% if not can('analysis.read') and not can('product.read') %}
+      <div class="kpi"><div class="kpi-label">授权模块</div><div class="kpi-value"><i class="ti ti-lock-open" aria-label="已授权"></i></div><div class="kpi-note">按资源权限展示</div></div>
+      {% endif %}
+    </div>
+
+    {% if can('system.manage') %}
+    <div class="pending-panel" data-pending-kind="all"><div class="pending-label">全部待关注事项</div><div class="pending-value">{{ workspace.pending_total|default(0, true) }}</div><div class="pending-note">来自当前账号有权查看的业务资源</div></div>
+    {% elif can('qa.handle') %}
+    <div class="pending-panel" data-pending-kind="tickets"><div class="pending-label">待处理工单</div><div class="pending-value">{{ workspace.alerts.tickets.count|default(0, true) }}</div><div class="pending-note">包括待领取和处理中工单</div></div>
+    {% elif can('knowledge.write') or can('knowledge.publish') %}
+    <div class="pending-panel" data-pending-kind="knowledge"><div class="pending-label">待处理知识文档</div><div class="pending-value">{{ workspace.alerts.knowledge.count|default(0, true) }}</div><div class="pending-note">待发布或处理失败的文档</div></div>
+    {% elif can('model.run') %}
+    <div class="pending-panel" data-pending-kind="models"><div class="pending-label">需关注模型任务</div><div class="pending-value">{{ workspace.alerts.models.count|default(0, true) }}</div><div class="pending-note">排队、运行或失败任务</div></div>
+    {% elif can('refund.approve') %}
+    <div class="pending-panel" data-pending-kind="refunds"><div class="pending-label">待审核退款</div><div class="pending-value">{{ workspace.alerts.refunds.count|default(0, true) }}</div><div class="pending-note">按申请时间优先处理</div></div>
+    {% else %}
+    <div class="pending-panel" data-pending-kind="none"><div class="pending-label">当前待办</div><div class="pending-value">{{ workspace.pending_total|default(0, true) }}</div><div class="pending-note">仅统计有权查看的事项</div></div>
+    {% endif %}
+  </section>
+
+  {% if workspace.alerts %}
+  <section aria-labelledby="attention-title">
+    <div class="section-heading"><h2 id="attention-title">需要关注</h2><span>按业务优先级排列</span></div>
+    <div class="attention-grid">
+      {% if can('product.read') and workspace.alerts.low_stock is defined %}
+      <article class="attention-group" data-alert="low-stock">
+        <div class="attention-head"><strong><i class="ti ti-packages"></i>低库存</strong><span class="attention-count">{{ workspace.alerts.low_stock.count }}</span></div>
+        <ul class="attention-list">{% for item in workspace.alerts.low_stock['items'] %}<li class="attention-row"><a class="attention-main attention-link" href="{{ url_for('products.index') }}">{{ item.product_name }} <span class="text-muted">{{ item.sku }}</span></a><span class="attention-meta">余 {{ item.stock_qty }}</span></li>{% else %}<li class="attention-empty">暂无低库存商品</li>{% endfor %}</ul>
+      </article>
+      {% endif %}
+      {% if can('refund.read') and workspace.alerts.refunds is defined %}
+      <article class="attention-group" data-alert="refunds">
+        <div class="attention-head"><strong><i class="ti ti-cash-banknote-off"></i>待审核退款</strong><span class="attention-count">{{ workspace.alerts.refunds.count }}</span></div>
+        <ul class="attention-list">{% for item in workspace.alerts.refunds['items'] %}<li class="attention-row"><a class="attention-main attention-link" href="{{ url_for('refunds.index') }}">{{ item.refund_no }}</a><span class="attention-meta">¥{{ '{:,.2f}'.format(item.amount) }}</span></li>{% else %}<li class="attention-empty">暂无待审核退款</li>{% endfor %}</ul>
+      </article>
+      {% endif %}
+      {% if can('model.read') and workspace.alerts.models is defined %}
+      <article class="attention-group" data-alert="models">
+        <div class="attention-head"><strong><i class="ti ti-chart-dots-3"></i>模型任务</strong><span class="attention-count">{{ workspace.alerts.models.count }}</span></div>
+        <ul class="attention-list">{% for item in workspace.alerts.models['items'] %}<li class="attention-row"><a class="attention-main attention-link" href="{{ url_for('algorithms.index', task_id=item.task_id) }}">#{{ item.task_id }} {{ item.task_type }}</a><span class="attention-meta">{{ item.status }}</span></li>{% else %}<li class="attention-empty">暂无需关注任务</li>{% endfor %}</ul>
+      </article>
+      {% endif %}
+      {% if can('knowledge.read') and workspace.alerts.knowledge is defined %}
+      <article class="attention-group" data-alert="knowledge">
+        <div class="attention-head"><strong><i class="ti ti-books"></i>知识文档</strong><span class="attention-count">{{ workspace.alerts.knowledge.count }}</span></div>
+        <ul class="attention-list">{% for item in workspace.alerts.knowledge['items'] %}<li class="attention-row"><a class="attention-main attention-link" href="{{ url_for('knowledge.index') }}">{{ item.title }}</a><span class="attention-meta">{{ item.status }}</span></li>{% else %}<li class="attention-empty">暂无待处理文档</li>{% endfor %}</ul>
+      </article>
+      {% endif %}
+      {% if can('qa.handle') and workspace.alerts.tickets is defined %}
+      <article class="attention-group" data-alert="tickets">
+        <div class="attention-head"><strong><i class="ti ti-ticket"></i>人工工单</strong><span class="attention-count">{{ workspace.alerts.tickets.count }}</span></div>
+        <ul class="attention-list">{% for item in workspace.alerts.tickets['items'] %}<li class="attention-row"><a class="attention-main attention-link" href="{{ url_for('qa.tickets') }}">#{{ item.ticket_id }} {{ item.question }}</a><span class="attention-meta">{{ item.status }}</span></li>{% else %}<li class="attention-empty">暂无待处理工单</li>{% endfor %}</ul>
+      </article>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="modules-title">
+    <div class="section-heading"><h2 id="modules-title">授权模块</h2><span>进入日常业务处理</span></div>
+    <nav class="workspace-modules" data-workspace-modules aria-label="授权业务模块">
+      {% if can('customer.read') %}{{ module_link('customers.index', 'ti-users', '客户360', '客户价值与消费明细') }}{% endif %}
+      {% if can('product.read') %}{{ module_link('products.index', 'ti-package', '商品与库存', '商品资料与库存状态') }}{% endif %}
+      {% if can('order.read') %}{{ module_link('orders.index', 'ti-receipt', '订单', '订单创建与履约记录') }}{% endif %}
+      {% if can('payment.read') %}{{ module_link('payments.index', 'ti-credit-card', '支付', '支付流水与状态') }}{% endif %}
+      {% if can('refund.read') %}{{ module_link('refunds.index', 'ti-cash-banknote-off', '退款', '退款申请与审核') }}{% endif %}
+      {% if can('analysis.read') %}{{ module_link('reports.index', 'ti-report-analytics', '经营报表', '可追溯 ADS 报表') }}{% endif %}
+      {% if can('import.read') %}{{ module_link('imports.index', 'ti-database-import', '数据导入', '导入批次与质量') }}{% endif %}
+      {% if can('model.read') %}{{ module_link('algorithms.index', 'ti-chart-dots-3', '算法任务', '模型运行与结果') }}{% endif %}
+      {% if can('sql.execute') %}{{ module_link('custom_query.custom_query_page', 'ti-database-search', 'SQL 实验', '只读数据查询') }}{% endif %}
+      {% if can('knowledge.read') %}{{ module_link('knowledge.index', 'ti-books', '知识库', '文档上传与发布') }}{% endif %}
+      {% if can('qa.read') %}{{ module_link('qa.chat', 'ti-message-chatbot', 'QA 客服', '知识问答与引用') }}{% endif %}
+      {% if can('qa.handle') %}{{ module_link('qa.tickets', 'ti-ticket', '人工工单', '领取与处理工单') }}{% endif %}
+      {% if can('system.manage') %}{{ module_link('admin.accounts', 'ti-user-shield', '账号与角色', '账号状态与角色分配') }}{% endif %}
+      {% if can('audit.read') %}{{ module_link('admin.logs', 'ti-list-search', '审计日志', '查看关键操作记录') }}{% endif %}
     </nav>
   </section>
 
-  <main class="home-content" id="operations">
-    <div class="section-head">
-      <h2>LIVE COMMERCE<br>SIGNALS</h2>
-      <p>经营数据来自支付与退款消费流水。趋势、订单和客户价值使用同一数据库事实口径，保证分析结果可回溯。</p>
-    </div>
-    <div class="operations-grid">
-      <section class="trend-panel" aria-labelledby="trend-title">
-        <div class="panel-title" id="trend-title">近 12 个月净交易额 <span>单位：人民币</span></div>
-        <div class="chart-wrap"><canvas id="trendChart" aria-label="近12个月净交易额趋势图"></canvas></div>
-      </section>
-      <section class="orders-panel" aria-labelledby="orders-title">
-        <div class="panel-title" id="orders-title">最近订单 <a href="{{ url_for('orders.index') }}">查看全部 <i class="ti ti-arrow-up-right"></i></a></div>
-        <table class="orders-table">
-          <thead><tr><th>订单号</th><th>客户</th><th>金额</th><th>状态</th></tr></thead>
-          <tbody>
-          {% for row in recent_orders %}
-            <tr><td>{{ row.order_no }}</td><td>{{ row.customer_name }}</td><td>¥{{ row.total_amount }}</td><td><span class="order-status">{{ row.status }}</span></td></tr>
-          {% else %}<tr><td colspan="4" class="empty">暂无订单</td></tr>{% endfor %}
-          </tbody>
-        </table>
-      </section>
-    </div>
-    <nav class="module-links" aria-label="业务模块快捷入口">
-      <a class="module-link" href="{{ url_for('customers.index') }}"><span>客户价值</span><i class="ti ti-arrow-up-right"></i></a>
-      <a class="module-link" href="{{ url_for('products.index') }}"><span>商品库存</span><i class="ti ti-arrow-up-right"></i></a>
-      <a class="module-link" href="{{ url_for('payments.index') }}"><span>支付退款</span><i class="ti ti-arrow-up-right"></i></a>
-      <a class="module-link" href="{{ url_for('algorithms.index') }}"><span>算法模型</span><i class="ti ti-arrow-up-right"></i></a>
-    </nav>
-  </main>
-
-  <script type="module" src="{{ url_for('static', filename='js/line-waves.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/magic-bento.js') }}"></script>
-  <script>
-    new Chart(document.getElementById('trendChart'), {
-      type:'line',
-      data:{labels:{{ trend_labels|tojson }},datasets:[{data:{{ trend_values|tojson }},borderColor:'#64d5a4',backgroundColor:'rgba(100,213,164,.12)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f6f5f0',fill:true,tension:.24}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{displayColors:false}},scales:{x:{grid:{display:false},ticks:{color:'#9da19e',maxRotation:0}},y:{grid:{color:'rgba(255,255,255,.09)'},ticks:{color:'#9da19e'}}}}
-    });
-  </script>
-</body>
-</html>
+  {% if can('order.read') and workspace.recent_orders %}
+  <section aria-labelledby="recent-orders-title">
+    <div class="section-heading"><h2 id="recent-orders-title">最近订单</h2><a class="attention-link" href="{{ url_for('orders.index') }}">查看全部</a></div>
+    <div class="orders-compact table-responsive"><table class="table table-vcenter"><thead><tr><th>订单号</th><th>客户</th><th>状态</th><th>金额</th><th>时间</th></tr></thead><tbody>{% for order in workspace.recent_orders %}<tr><td>{{ order.order_no }}</td><td>{{ order.customer_name }}</td><td>{{ order.status }}</td><td class="money">¥{{ order.total_amount }}</td><td>{{ order.ordered_at.strftime('%m-%d %H:%M') }}</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

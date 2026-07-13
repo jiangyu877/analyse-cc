@@ -34,7 +34,7 @@
 - Enforced refund-to-order-item ownership with composite foreign keys and repeated quantity, ownership, and amount validation at approval time.
 - Fixed both Flask and Gradio KMeans/churn result views to read the RFM snapshot used by the selected task.
 
-**Repository state:** Changes remain uncommitted on the current `main` worktree because this environment cannot write `.git`; no source change was reverted or discarded.
+**Repository state:** Release A/B was committed as `b580ad7`. Release C changes remain uncommitted on the explicitly authorized current `main` worktree; no source change was reverted or discarded.
 
 **Release B lightweight evidence:**
 
@@ -45,6 +45,18 @@
 - Full suite with real temporary PostgreSQL databases: `89 passed in 37.06s`.
 - Runtime smoke: `/knowledge`, `/qa`, `/qa/tickets`, `/healthz`, and Gradio returned HTTP 200.
 - Backup before applying migrations 004-005: `.cache/release-b-pre-migration.dump`.
+
+**Release C status:** Complete. Tasks 6-8 meet their behavioral exit gates.
+
+**Release C evidence:**
+
+- Append-only migrations `006_ads_results.sql` and `007_model_registry_and_results.sql` were applied locally; a second initialization applied no migrations.
+- ADS refresh task `49` produced the current traceable dashboard snapshot, with daily, product, category, customer-profile, and RFM results linked to the refresh task.
+- RFM, KMeans, churn, 30-day customer amount, product sales forecast, and product recommendation runs are model-versioned and task-scoped.
+- The home page is a permission-shaped operational workspace with finance, model, knowledge, QA, and administration actions plus a compact mobile layout.
+- Full suite with real temporary PostgreSQL databases: `101 passed, 1 skipped in 38.94s`; the skipped legacy demo test requires an explicit `TEST_DATABASE_URL` instead of the local-test opt-in.
+- Runtime smoke: `/healthz`, `/login`, and Gradio returned HTTP 200; application URL registration includes reports and all six model families.
+- Local browser screenshot automation was blocked by browser policy for `127.0.0.1`; responsive behavior is covered by focused template and role-workspace contracts.
 
 ---
 

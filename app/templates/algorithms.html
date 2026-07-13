@@ -6,6 +6,7 @@
   .algorithm-run-grid { display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:0; }
   .algorithm-run { padding:16px; min-width:0; }
   .algorithm-run + .algorithm-run { border-left:1px solid var(--line); }
+  .algorithm-run:nth-child(n+4) { border-top:1px solid var(--line); }
   .algorithm-run-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; margin-bottom:5px; }
   .algorithm-run-title i { color:var(--brand); font-size:19px; }
   .algorithm-run p { color:var(--muted); font-size:12px; line-height:1.55; min-height:38px; margin:0 0 12px; }
@@ -76,7 +77,7 @@
   {% endif %}
 </div>
 
-{% if session.role in ['admin','analyst'] %}
+{% if can('model.run') %}
 <section class="panel mb-3">
   <div class="panel-head">运行算法</div>
   <div class="algorithm-run-grid">
@@ -104,6 +105,32 @@
         <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-user-question"></i> 开始预测</button>
       </div>
     </form>
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='customer_amount') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-currency-yuan"></i>30天消费额预测</div>
+      <p>使用 Ridge 基线预测每位客户未来 30 天的消费金额。</p>
+      <input type="hidden" name="horizon_days" value="30">
+      <input type="hidden" name="training_days" value="180">
+      <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-chart-line"></i> 开始预测</button>
+    </form>
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='product_sales_forecast') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-package"></i>商品销量预测</div>
+      <p>用 7/14/28 天滞后滚动均值预测未来 30 天销量。</p>
+      <input type="hidden" name="horizon_days" value="30">
+      <input type="hidden" name="training_days" value="90">
+      <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-chart-arrows"></i> 开始预测</button>
+    </form>
+    <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='product_recommendation') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="algorithm-run-title"><i class="ti ti-sparkles"></i>商品智能推荐</div>
+      <p>通过余弦相似度为客户推荐尚未购买的关联商品。</p>
+      <div class="algorithm-actions">
+        <div class="field"><label class="form-label" for="top-k">每人条数</label><input id="top-k" class="form-control" type="number" name="top_k" value="5" min="1" max="20"></div>
+        <input type="hidden" name="training_days" value="180">
+        <button class="btn btn-outline-secondary" type="submit"><i class="ti ti-sparkles"></i> 生成推荐</button>
+      </div>
+    </form>
   </div>
 </section>
 {% endif %}
@@ -115,7 +142,7 @@
       <h2>{{ result.title if result else task_labels.get(selected_task.task_type, selected_task.task_type) }}</h2>
       <p>{{ result.subtitle if result else '本次任务没有可展示的结果。' }}</p>
     </div>
-    <div class="result-meta">任务 #{{ selected_task.task_id }} · {{ selected_task.started_at.strftime('%Y-%m-%d %H:%M') }}</div>
+    <div class="result-meta">任务 #{{ selected_task.task_id }} · {{ selected_task.model_version or '历史版本' }} · {{ selected_task.started_at.strftime('%Y-%m-%d %H:%M') }}</div>
   </div>
 
   {% if result %}
@@ -159,7 +186,7 @@
           <td class="advice">{{ row.advice }}</td>
         </tr>{% else %}<tr><td colspan="6" class="empty">暂无分群结果</td></tr>{% endfor %}</tbody>
       </table>
-      {% else %}
+      {% elif result.type == 'churn' %}
       <table class="table">
         <thead><tr><th>风险等级</th><th>客户数 / 占比</th><th>平均风险</th><th>建议动作</th></tr></thead>
         <tbody>{% for row in result.rows %}<tr>
@@ -168,6 +195,33 @@
           <td>{{ '%.1f'|format(row.avg_probability * 100) }}%</td>
           <td class="advice">{{ '48 小时内优先回访' if row.risk_level == '高风险' else '安排定向关怀' if row.risk_level == '需关注' else '保持常规服务' }}</td>
         </tr>{% else %}<tr><td colspan="4" class="empty">暂无风险结果</td></tr>{% endfor %}</tbody>
+      </table>
+      {% elif result.type == 'customer_amount' %}
+      <table class="table">
+        <thead><tr><th>客户</th><th>预测周期</th><th>预测金额</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td><div class="fw-semibold">{{ row.name }}</div><div class="text-muted small">{{ row.customer_no }}</div></td>
+          <td>{{ row.forecast_start }} 至 {{ row.forecast_end }}</td>
+          <td class="money">¥{{ '{:,.2f}'.format(row.predicted_amount) }}</td>
+        </tr>{% else %}<tr><td colspan="3" class="empty">暂无消费额预测</td></tr>{% endfor %}</tbody>
+      </table>
+      {% elif result.type == 'product_sales_forecast' %}
+      <table class="table">
+        <thead><tr><th>商品</th><th>预测周期总销量</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td><div class="fw-semibold">{{ row.product_name }}</div><div class="text-muted small">{{ row.sku }}</div></td>
+          <td>{{ '%.2f'|format(row.predicted_quantity) }}</td>
+        </tr>{% else %}<tr><td colspan="2" class="empty">暂无销量预测</td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}
+      <table class="table">
+        <thead><tr><th>客户</th><th>排名</th><th>推荐商品</th><th>相似度</th></tr></thead>
+        <tbody>{% for row in result.rows %}<tr>
+          <td><div class="fw-semibold">{{ row.name }}</div><div class="text-muted small">{{ row.customer_no }}</div></td>
+          <td>#{{ row.rank_no }}</td>
+          <td><div class="fw-semibold">{{ row.product_name }}</div><div class="text-muted small">{{ row.sku }}</div></td>
+          <td>{{ '%.3f'|format(row.score) }}</td>
+        </tr>{% else %}<tr><td colspan="4" class="empty">暂无推荐结果</td></tr>{% endfor %}</tbody>
       </table>
       {% endif %}
     </div>
@@ -206,12 +260,15 @@
       <td>#{{ task.task_id }}</td>
       <td class="history-type">{{ task_labels.get(task.task_type, task.task_type) }}</td>
       <td><span class="badge {{ 'bg-success-lt' if task.status == 'success' else 'bg-danger-lt' if task.status == 'failed' else 'bg-warning-lt' }}">{{ '已完成' if task.status == 'success' else '失败' if task.status == 'failed' else '计算中' }}</span></td>
-      <td>{% if task.task_type == 'kmeans' %}{{ task.parameters.get('clusters', 4) }} 个客户群{% elif task.task_type == 'churn' %}观察 {{ task.parameters.get('observation_days', 90) }} 天{% else %}全部客户{% endif %}</td>
+      <td>{% if task.task_type == 'kmeans' %}{{ task.parameters.get('clusters', 4) }} 个客户群{% elif task.task_type == 'churn' %}观察 {{ task.parameters.get('observation_days', 90) }} 天{% elif task.task_type in ['customer_amount', 'product_sales_forecast'] %}预测 {{ task.parameters.get('horizon_days', 30) }} 天{% elif task.task_type == 'product_recommendation' %}每人 {{ task.parameters.get('top_k', 5) }} 条{% else %}全部客户{% endif %}</td>
       <td class="history-summary">
         {% if task.status == 'failed' %}{{ task.error_message or '计算失败' }}
         {% elif task.task_type == 'rfm' %}{{ metrics.get('customer_count:all', 0)|int }} 位客户
         {% elif task.task_type == 'kmeans' %}{{ metrics.get('customer_count:all', 0)|int }} 位客户 · 清晰度 {{ '%.2f'|format(metrics.get('silhouette:all', 0)|float) }}
-        {% else %}模型识别力 {{ '%.1f'|format(metrics.get('auc:training', 0)|float * 100) }}%
+        {% elif task.task_type == 'churn' %}模型识别力 {{ '%.1f'|format(metrics.get('auc:training', 0)|float * 100) }}%
+        {% elif task.task_type == 'customer_amount' %}{{ metrics.get('prediction_count:all', 0)|int }} 位客户 · MAE {{ '%.2f'|format(metrics.get('mae:training', 0)|float) }}
+        {% elif task.task_type == 'product_sales_forecast' %}{{ metrics.get('forecast_row_count:all', 0)|int }} 条预测 · MAE {{ '%.2f'|format(metrics.get('mae:backtest', 0)|float) }}
+        {% else %}{{ metrics.get('recommendation_count:all', 0)|int }} 条推荐
         {% endif %}
       </td>
       <td>{{ task.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
