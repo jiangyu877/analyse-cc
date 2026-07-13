@@ -46,6 +46,7 @@ def test_registered_routes_use_resource_permissions():
     route_files = (
         "customers.py", "products.py", "orders.py", "payments.py", "refunds.py",
         "algorithms.py", "custom_query.py", "imports.py", "main.py", "admin.py",
+        "reports.py",
     )
     combined = "\n".join(
         (ROOT / "app" / "routes" / filename).read_text(encoding="utf-8")

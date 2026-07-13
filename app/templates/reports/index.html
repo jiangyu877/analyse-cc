@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}经营报表{% endblock %}
+{% block extra_head %}
+<style>
+  .report-filter { display:grid; grid-template-columns:minmax(150px,1fr) repeat(2,minmax(150px,1fr)) auto; gap:12px; align-items:end; }
+  .report-filter .form-label { margin-bottom:6px; }
+  .report-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .report-meta { color:var(--muted); font-size:12px; font-weight:400; }
+  .report-table td { white-space:nowrap; vertical-align:middle; }
+  .report-table .identifier { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; }
+  @media(max-width:760px) { .report-filter { grid-template-columns:1fr 1fr; } .report-filter .report-actions { grid-column:1/-1; } }
+  @media(max-width:520px) { .report-filter { grid-template-columns:1fr; } .report-filter .report-actions { grid-column:auto; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>经营报表</h1>
+    <p>{{ filters.start.isoformat() }} 至 {{ filters.end.isoformat() }} · {{ report.label }}</p>
+  </div>
+  {% if can('analysis.export') %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('reports.export_csv', dimension=filters.dimension, start=filters.start.isoformat(), end=filters.end.isoformat()) }}">
+    <i class="ti ti-download" aria-hidden="true"></i> 导出 CSV
+  </a>
+  {% endif %}
+</div>
+
+<section class="panel mb-3">
+  <div class="panel-body">
+    <form class="report-filter" method="get" action="{{ url_for('reports.index') }}">
+      <div>
+        <label class="form-label" for="dimension">报表维度</label>
+        <select class="form-select" id="dimension" name="dimension">
+          {% for key, definition in dimensions.items() %}
+          <option value="{{ key }}" {{ 'selected' if key == filters.dimension }}>{{ definition.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="start">开始日期</label>
+        <input class="form-control" id="start" name="start" type="date" value="{{ filters.start.isoformat() }}" required>
+      </div>
+      <div>
+        <label class="form-label" for="end">结束日期</label>
+        <input class="form-control" id="end" name="end" type="date" value="{{ filters.end.isoformat() }}" required>
+      </div>
+      <div class="report-actions">
+        <button class="btn btn-primary" type="submit"><i class="ti ti-filter" aria-hidden="true"></i> 筛选</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <span>{{ report.label }}</span>
+    <span class="report-meta">{{ rows|length }} 条记录</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter report-table mb-0">
+      <thead>
+        <tr>{% for column in report.columns %}<th>{{ column.label }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          {% for column in report.columns %}
+          {% set value = row[column.key] %}
+          <td class="{{ 'money' if column.kind == 'money' else 'identifier' if column.kind == 'identifier' else '' }}">
+            {% if value is none %}
+            -
+            {% elif column.kind == 'money' %}
+            ¥{{ '%.2f'|format(value|float) }}
+            {% else %}
+            {{ value }}
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td class="empty" colspan="{{ report.columns|length }}">当前筛选范围暂无报表数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -13,6 +13,12 @@ import matplotlib.pyplot as plt
 
 from app import create_app
 from app.services.algorithms import run_churn, run_kmeans, run_rfm
+from app.services.prediction import (
+    PredictionService,
+    load_customer_amount_predictions,
+    load_product_recommendations,
+    load_product_sales_forecasts,
+)
 from app.services.workbench import (
     load_churn_result,
     load_cluster_result,
@@ -191,6 +197,65 @@ def run_churn_view(observation_days):
     return fig, fig_pie, table, insight
 
 
+def run_customer_amount_view():
+    columns = ["客户", "预测开始", "预测结束", "未来30天预测金额"]
+    try:
+        with flask_app.app_context():
+            task_id = PredictionService.run_customer_amount(
+                None, horizon_days=30, training_days=180
+            )
+            frame = pd.DataFrame(load_customer_amount_predictions(task_id))
+    except Exception as exc:
+        return pd.DataFrame(columns=columns), f"### 执行失败\n{str(exc)[:300]}"
+    if frame.empty:
+        return pd.DataFrame(columns=columns), "### 暂无预测结果"
+    frame["customer"] = _customer_label(frame)
+    table = frame[["customer", "forecast_start", "forecast_end", "predicted_amount"]].copy()
+    table.columns = columns
+    table["未来30天预测金额"] = table["未来30天预测金额"].round(2)
+    return table, f"### 客户消费额任务 #{task_id}\n共生成 **{len(table)}** 位客户的任务级预测。"
+
+
+def run_product_sales_forecast_view():
+    columns = ["商品", "未来30天预测销量"]
+    try:
+        with flask_app.app_context():
+            task_id = PredictionService.run_product_sales_forecast(
+                None, horizon_days=30, training_days=90
+            )
+            frame = pd.DataFrame(load_product_sales_forecasts(task_id))
+    except Exception as exc:
+        return pd.DataFrame(columns=columns), f"### 执行失败\n{str(exc)[:300]}"
+    if frame.empty:
+        return pd.DataFrame(columns=columns), "### 暂无预测结果"
+    table = frame.groupby(["sku", "product_name"], as_index=False)["predicted_quantity"].sum()
+    table["商品"] = table["sku"] + " · " + table["product_name"]
+    table = table[["商品", "predicted_quantity"]]
+    table.columns = columns
+    table["未来30天预测销量"] = table["未来30天预测销量"].round(2)
+    return table, f"### 商品销量任务 #{task_id}\n结果来自同一任务的逐日预测明细。"
+
+
+def run_product_recommendation_view(top_k):
+    columns = ["客户", "排名", "推荐商品", "相似度"]
+    try:
+        with flask_app.app_context():
+            task_id = PredictionService.run_product_recommendation(
+                None, top_k=int(top_k), training_days=180
+            )
+            frame = pd.DataFrame(load_product_recommendations(task_id))
+    except Exception as exc:
+        return pd.DataFrame(columns=columns), f"### 执行失败\n{str(exc)[:300]}"
+    if frame.empty:
+        return pd.DataFrame(columns=columns), "### 暂无推荐结果"
+    frame["customer"] = _customer_label(frame)
+    frame["product"] = frame["sku"] + " · " + frame["product_name"]
+    table = frame[["customer", "rank_no", "product", "score"]].copy()
+    table.columns = columns
+    table["相似度"] = table["相似度"].round(4)
+    return table, f"### 商品推荐任务 #{task_id}\n共生成 **{len(table)}** 条任务级推荐。"
+
+
 with gr.Blocks(title="消费分析预测工作台") as demo:
     gr.Markdown("# 消费分析预测工作台\nRFM、客户分群和流失风险结果均按任务编号留存。")
     with gr.Tabs():
@@ -223,6 +288,35 @@ with gr.Blocks(title="消费分析预测工作台") as demo:
                 run_churn_view,
                 inputs=[observation_days],
                 outputs=[churn_top, churn_structure, churn_table, churn_insight],
+            )
+
+        with gr.TabItem("30天客户消费额"):
+            run_amount_button = gr.Button("执行客户消费额预测", variant="primary")
+            amount_table = gr.Dataframe(label="客户预测明细", interactive=False)
+            amount_insight = gr.Markdown()
+            run_amount_button.click(
+                run_customer_amount_view,
+                outputs=[amount_table, amount_insight],
+            )
+
+        with gr.TabItem("商品销量预测"):
+            run_sales_button = gr.Button("执行商品销量预测", variant="primary")
+            sales_table = gr.Dataframe(label="商品预测汇总", interactive=False)
+            sales_insight = gr.Markdown()
+            run_sales_button.click(
+                run_product_sales_forecast_view,
+                outputs=[sales_table, sales_insight],
+            )
+
+        with gr.TabItem("商品智能推荐"):
+            recommendation_count = gr.Slider(1, 20, value=5, step=1, label="每位客户推荐条数")
+            run_recommendation_button = gr.Button("生成商品推荐", variant="primary")
+            recommendation_table = gr.Dataframe(label="推荐明细", interactive=False)
+            recommendation_insight = gr.Markdown()
+            run_recommendation_button.click(
+                run_product_recommendation_view,
+                inputs=[recommendation_count],
+                outputs=[recommendation_table, recommendation_insight],
             )
 
 

@@ -1,20 +1,21 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, abort, redirect, render_template, session, url_for
 
 from app.repositories.retail import DashboardRepository
-from app.security.authorization import permission_required
+from app.security.authorization import account_permissions
 
 main_bp = Blueprint("main", __name__)
 
 
 @main_bp.get("/")
-@permission_required("analysis.read")
 def dashboard():
-    summary = DashboardRepository.summary()
-    trend = DashboardRepository.trend()
+    account_id = session.get("user_id")
+    if account_id is None:
+        return redirect(url_for("auth.login", next="/"))
+
+    permissions = account_permissions(account_id)
+    if not permissions:
+        abort(403)
     return render_template(
         "dashboard.html",
-        summary=summary,
-        trend_labels=[row["month"] for row in trend],
-        trend_values=[float(row["net_amount"]) for row in trend],
-        recent_orders=DashboardRepository.recent_orders(),
+        workspace=DashboardRepository.workspace(permissions),
     )

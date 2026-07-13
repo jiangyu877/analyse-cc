@@ -4,6 +4,12 @@ from sqlalchemy import text
 from app.extensions import db
 from app.security.authorization import permission_required
 from app.services.algorithms import AlgorithmError, run_churn, run_kmeans, run_rfm
+from app.services.prediction import (
+    PredictionService,
+    load_customer_amount_predictions,
+    load_product_recommendations,
+    load_product_sales_forecasts,
+)
 
 algorithms_bp = Blueprint("algorithms", __name__, url_prefix="/algorithms")
 
@@ -11,6 +17,9 @@ TASK_LABELS = {
     "rfm": "RFM 客户价值",
     "kmeans": "客户智能分群",
     "churn": "客户流失预警",
+    "customer_amount": "30天客户消费额预测",
+    "product_sales_forecast": "商品销量预测",
+    "product_recommendation": "商品智能推荐",
 }
 
 SEGMENT_ADVICE = {
@@ -218,6 +227,93 @@ def _churn_result(task_id, metrics):
     }
 
 
+def _customer_amount_result(task_id, metrics):
+    rows = load_customer_amount_predictions(task_id)
+    total = sum(row["predicted_amount"] for row in rows)
+    average = total / len(rows) if rows else 0
+    top = rows[:12]
+    return {
+        "type": "customer_amount",
+        "title": "未来30天客户消费额预测",
+        "subtitle": "Ridge 基线按任务保存预测金额，历史任务可随时回看。",
+        "rows": rows,
+        "summary": [
+            _summary_item("预测客户", f"{len(rows):,}", "本次生成预测的客户", "ti-users"),
+            _summary_item("预计总额", f"¥{total:,.0f}", "预测周期内合计", "ti-currency-yuan"),
+            _summary_item("客户均值", f"¥{average:,.0f}", "每位客户平均预测额", "ti-chart-bar"),
+            _summary_item("训练 MAE", f"{_number(metrics.get('mae:training')):.2f}", "训练集平均绝对误差", "ti-target-arrow"),
+        ],
+        "chart": {
+            "type": "bar",
+            "labels": [row["name"] for row in top],
+            "values": [row["predicted_amount"] for row in top],
+            "label": "预测金额",
+        },
+    }
+
+
+def _product_sales_result(task_id, metrics):
+    forecasts = load_product_sales_forecasts(task_id)
+    products = {}
+    for row in forecasts:
+        item = products.setdefault(row["product_id"], {
+            "sku": row["sku"],
+            "product_name": row["product_name"],
+            "predicted_quantity": 0.0,
+        })
+        item["predicted_quantity"] += row["predicted_quantity"]
+    rows = sorted(products.values(), key=lambda row: (-row["predicted_quantity"], row["sku"]))
+    total = sum(row["predicted_quantity"] for row in rows)
+    return {
+        "type": "product_sales_forecast",
+        "title": "未来商品销量预测",
+        "subtitle": "基于 7/14/28 天滞后滚动均值的确定性基线。",
+        "rows": rows,
+        "summary": [
+            _summary_item("预测商品", f"{len(rows):,}", "本次覆盖的在售商品", "ti-package"),
+            _summary_item("预计销量", f"{total:,.1f}", "预测周期总数量", "ti-shopping-cart"),
+            _summary_item("结果行数", f"{len(forecasts):,}", "商品与日期明细", "ti-calendar"),
+            _summary_item("回测 MAE", f"{_number(metrics.get('mae:backtest')):.2f}", "滚动窗口回测误差", "ti-target-arrow"),
+        ],
+        "chart": {
+            "type": "bar",
+            "labels": [row["product_name"] for row in rows[:12]],
+            "values": [row["predicted_quantity"] for row in rows[:12]],
+            "label": "预测销量",
+        },
+    }
+
+
+def _recommendation_result(task_id, metrics):
+    rows = load_product_recommendations(task_id)
+    product_counts = {}
+    for row in rows:
+        item = product_counts.setdefault(row["product_id"], {
+            "name": row["product_name"], "count": 0,
+        })
+        item["count"] += 1
+    popular = sorted(product_counts.values(), key=lambda row: (-row["count"], row["name"]))
+    customer_count = len({row["customer_id"] for row in rows})
+    return {
+        "type": "product_recommendation",
+        "title": "商品智能推荐结果",
+        "subtitle": "余弦相似度只推荐客户尚未购买的关联商品。",
+        "rows": rows,
+        "summary": [
+            _summary_item("推荐客户", f"{customer_count:,}", "获得推荐的客户", "ti-users"),
+            _summary_item("推荐条目", f"{len(rows):,}", "按客户排序的结果", "ti-list"),
+            _summary_item("涉及商品", f"{len(product_counts):,}", "推荐结果覆盖商品", "ti-package"),
+            _summary_item("平均相似度", f"{_number(metrics.get('mean_similarity:all')):.3f}", "关联强度均值", "ti-link"),
+        ],
+        "chart": {
+            "type": "bar",
+            "labels": [row["name"] for row in popular[:12]],
+            "values": [row["count"] for row in popular[:12]],
+            "label": "推荐次数",
+        },
+    }
+
+
 def _load_result(task):
     if not task or task["status"] != "success":
         return None
@@ -226,6 +322,9 @@ def _load_result(task):
         "rfm": lambda: _rfm_result(task["task_id"]),
         "kmeans": lambda: _kmeans_result(task["task_id"], metrics),
         "churn": lambda: _churn_result(task["task_id"], metrics),
+        "customer_amount": lambda: _customer_amount_result(task["task_id"], metrics),
+        "product_sales_forecast": lambda: _product_sales_result(task["task_id"], metrics),
+        "product_recommendation": lambda: _recommendation_result(task["task_id"], metrics),
     }
     loader = loaders.get(task["task_type"])
     return loader() if loader else None
@@ -236,12 +335,14 @@ def _load_result(task):
 def index():
     tasks = db.session.execute(text("""
         SELECT t.task_id, t.task_type, t.status, t.parameters, t.started_at,
-               t.finished_at, t.error_message,
+               t.finished_at, t.error_message, registry.model_version,
                COALESCE(jsonb_object_agg(m.metric_name || ':' || m.dataset, m.metric_value)
                    FILTER (WHERE m.metric_id IS NOT NULL), '{}'::jsonb) AS metrics
         FROM ml.model_task t
+        LEFT JOIN ml.model_registry registry ON registry.model_id = t.model_id
         LEFT JOIN ml.model_metric m ON m.task_id = t.task_id
-        GROUP BY t.task_id ORDER BY t.started_at DESC LIMIT 100
+        GROUP BY t.task_id, registry.model_version
+        ORDER BY t.started_at DESC LIMIT 100
     """)).mappings().all()
     selected_id = request.args.get("task_id", type=int)
     selected_task = next((task for task in tasks if task["task_id"] == selected_id), None)
@@ -268,6 +369,24 @@ def run(task_type):
             task_id = run_kmeans(session["user_id"], request.form.get("clusters", 4))
         elif task_type == "churn":
             task_id = run_churn(session["user_id"], request.form.get("observation_days", 90))
+        elif task_type == "customer_amount":
+            task_id = PredictionService.run_customer_amount(
+                session["user_id"],
+                request.form.get("horizon_days", 30),
+                request.form.get("training_days", 180),
+            )
+        elif task_type == "product_sales_forecast":
+            task_id = PredictionService.run_product_sales_forecast(
+                session["user_id"],
+                request.form.get("horizon_days", 30),
+                request.form.get("training_days", 90),
+            )
+        elif task_type == "product_recommendation":
+            task_id = PredictionService.run_product_recommendation(
+                session["user_id"],
+                request.form.get("top_k", 5),
+                request.form.get("training_days", 180),
+            )
         else:
             raise AlgorithmError("未知算法类型")
         flash(f"算法任务 {task_id} 已完成，结果已生成", "success")

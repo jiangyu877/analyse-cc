@@ -381,26 +381,182 @@ class RefundRepository:
 
 class DashboardRepository:
     @staticmethod
-    def summary():
+    def current_snapshot():
+        return db.session.execute(text("""
+            SELECT task_id,
+                   (parameters->>'snapshot_date')::date AS snapshot_date,
+                   finished_at
+            FROM ml.model_task
+            WHERE task_type = 'analytics_refresh'
+              AND status = 'success'
+              AND parameters ? 'snapshot_date'
+            ORDER BY (parameters->>'snapshot_date')::date DESC,
+                     finished_at DESC, task_id DESC
+            LIMIT 1
+        """)).mappings().first()
+
+    @staticmethod
+    def summary(snapshot=None):
+        snapshot = snapshot or DashboardRepository.current_snapshot()
+        parameters = {
+            "snapshot_date": snapshot["snapshot_date"] if snapshot else None,
+            "task_id": snapshot["task_id"] if snapshot else None,
+        }
         return db.session.execute(text("""
             SELECT
               (SELECT COUNT(*) FROM biz.customer WHERE status = 'active') AS customer_count,
-              (SELECT COUNT(*) FROM biz.sales_order WHERE ordered_at >= date_trunc('month', now())) AS month_orders,
-              (SELECT COALESCE(SUM(net_amount), 0) FROM dwd.consumption_flow
-               WHERE occurred_at >= date_trunc('month', now())) AS month_net_amount,
+              (SELECT COALESCE(SUM(order_count), 0) FROM ads.daily_sales
+               WHERE snapshot_date = :snapshot_date
+                 AND refresh_task_id = :task_id
+                 AND sales_date >= date_trunc('month', CAST(:snapshot_date AS date))
+              ) AS month_orders,
+              (SELECT COALESCE(SUM(net_amount), 0) FROM ads.daily_sales
+               WHERE snapshot_date = :snapshot_date
+                 AND refresh_task_id = :task_id
+                 AND sales_date >= date_trunc('month', CAST(:snapshot_date AS date))
+              ) AS month_net_amount,
               (SELECT COUNT(*) FROM biz.product WHERE stock_qty < 10 AND status = 'active') AS low_stock_count
-        """)).mappings().one()
+        """), parameters).mappings().one()
 
     @staticmethod
-    def trend():
+    def trend(snapshot=None):
+        snapshot = snapshot or DashboardRepository.current_snapshot()
+        if snapshot is None:
+            return []
         return db.session.execute(text("""
-            SELECT to_char(date_trunc('month', occurred_at), 'YYYY-MM') AS month,
+            SELECT to_char(date_trunc('month', sales_date), 'YYYY-MM') AS month,
                    SUM(net_amount) AS net_amount
-            FROM dwd.consumption_flow
-            WHERE occurred_at >= date_trunc('month', now()) - interval '11 months'
-            GROUP BY date_trunc('month', occurred_at) ORDER BY date_trunc('month', occurred_at)
-        """)).mappings().all()
+            FROM ads.daily_sales
+            WHERE snapshot_date = :snapshot_date
+              AND refresh_task_id = :task_id
+              AND sales_date >= date_trunc('month', CAST(:snapshot_date AS date))
+                               - interval '11 months'
+            GROUP BY date_trunc('month', sales_date)
+            ORDER BY date_trunc('month', sales_date)
+        """), {
+            "snapshot_date": snapshot["snapshot_date"],
+            "task_id": snapshot["task_id"],
+        }).mappings().all()
 
     @staticmethod
     def recent_orders():
         return OrderRepository.list()[:10]
+
+    @staticmethod
+    def low_stock_attention():
+        items = db.session.execute(text("""
+            SELECT product_id, sku, product_name, stock_qty
+            FROM biz.product
+            WHERE status = 'active' AND stock_qty < 10
+            ORDER BY stock_qty, product_id
+            LIMIT 5
+        """)).mappings().all()
+        count = db.session.execute(text("""
+            SELECT COUNT(*)::int FROM biz.product
+            WHERE status = 'active' AND stock_qty < 10
+        """)).scalar_one()
+        return {"count": count, "items": items}
+
+    @staticmethod
+    def refund_attention():
+        items = db.session.execute(text("""
+            SELECT refund_id, refund_no, amount, created_at
+            FROM biz.refund
+            WHERE status = 'pending'
+            ORDER BY created_at, refund_id
+            LIMIT 5
+        """)).mappings().all()
+        count = db.session.execute(text("""
+            SELECT COUNT(*)::int FROM biz.refund WHERE status = 'pending'
+        """)).scalar_one()
+        return {"count": count, "items": items}
+
+    @staticmethod
+    def model_attention():
+        items = db.session.execute(text("""
+            SELECT task_id, task_type, status, started_at, error_message
+            FROM ml.model_task
+            WHERE task_type <> 'analytics_refresh'
+              AND status IN ('pending', 'running', 'failed')
+            ORDER BY CASE status WHEN 'failed' THEN 1 WHEN 'running' THEN 2 ELSE 3 END,
+                     started_at DESC, task_id DESC
+            LIMIT 5
+        """)).mappings().all()
+        count = db.session.execute(text("""
+            SELECT COUNT(*)::int FROM ml.model_task
+            WHERE task_type <> 'analytics_refresh'
+              AND status IN ('pending', 'running', 'failed')
+        """)).scalar_one()
+        return {"count": count, "items": items}
+
+    @staticmethod
+    def knowledge_attention():
+        items = db.session.execute(text("""
+            SELECT document_id, title, version, status, is_published
+            FROM kb.document
+            WHERE status = 'failed' OR (status = 'ready' AND NOT is_published)
+            ORDER BY CASE status WHEN 'failed' THEN 1 ELSE 2 END,
+                     updated_at DESC, document_id DESC
+            LIMIT 5
+        """)).mappings().all()
+        count = db.session.execute(text("""
+            SELECT COUNT(*)::int FROM kb.document
+            WHERE status = 'failed' OR (status = 'ready' AND NOT is_published)
+        """)).scalar_one()
+        return {"count": count, "items": items}
+
+    @staticmethod
+    def ticket_attention():
+        items = db.session.execute(text("""
+            SELECT ticket.ticket_id, ticket.status, source.content AS question
+            FROM qa.qa_ticket ticket
+            JOIN qa.qa_message source ON source.message_id = ticket.source_message_id
+            WHERE ticket.status IN ('pending', 'assigned')
+            ORDER BY CASE ticket.status WHEN 'pending' THEN 1 ELSE 2 END,
+                     ticket.created_at, ticket.ticket_id
+            LIMIT 5
+        """)).mappings().all()
+        count = db.session.execute(text("""
+            SELECT COUNT(*)::int FROM qa.qa_ticket
+            WHERE status IN ('pending', 'assigned')
+        """)).scalar_one()
+        return {"count": count, "items": items}
+
+    @staticmethod
+    def workspace(permissions):
+        permissions = frozenset(permissions)
+        workspace = {
+            "snapshot": None,
+            "summary": {},
+            "trend_labels": [],
+            "trend_values": [],
+            "recent_orders": [],
+            "alerts": {},
+        }
+
+        if "analysis.read" in permissions:
+            snapshot = DashboardRepository.current_snapshot()
+            trend = DashboardRepository.trend(snapshot)
+            workspace.update(
+                snapshot=snapshot,
+                summary=DashboardRepository.summary(snapshot),
+                trend_labels=[row["month"] for row in trend],
+                trend_values=[float(row["net_amount"]) for row in trend],
+            )
+        if "order.read" in permissions:
+            workspace["recent_orders"] = DashboardRepository.recent_orders()
+        if "product.read" in permissions:
+            workspace["alerts"]["low_stock"] = DashboardRepository.low_stock_attention()
+        if "refund.read" in permissions:
+            workspace["alerts"]["refunds"] = DashboardRepository.refund_attention()
+        if "model.read" in permissions:
+            workspace["alerts"]["models"] = DashboardRepository.model_attention()
+        if "knowledge.read" in permissions:
+            workspace["alerts"]["knowledge"] = DashboardRepository.knowledge_attention()
+        if "qa.handle" in permissions:
+            workspace["alerts"]["tickets"] = DashboardRepository.ticket_attention()
+
+        workspace["pending_total"] = sum(
+            alert["count"] for alert in workspace["alerts"].values()
+        )
+        return workspace
