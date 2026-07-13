@@ -42,6 +42,16 @@ def _metric(task_id, name, value, dataset="all"):
     """), {"task_id": task_id, "name": name, "value": float(value), "dataset": dataset})
 
 
+def _latest_rfm_task_id():
+    return db.session.execute(text("""
+        SELECT task_id
+        FROM ml.model_task
+        WHERE task_type = 'rfm' AND status = 'success'
+        ORDER BY finished_at DESC, task_id DESC
+        LIMIT 1
+    """)).scalar_one_or_none()
+
+
 def run_rfm(operator_id):
     task_id = _create_task("rfm", operator_id)
     try:
@@ -110,12 +120,19 @@ def run_kmeans(operator_id, clusters=4):
     from sklearn.preprocessing import StandardScaler
 
     clusters = max(2, min(int(clusters), 8))
-    task_id = _create_task("kmeans", operator_id, {"clusters": clusters})
+    rfm_task_id = _latest_rfm_task_id()
+    task_id = _create_task(
+        "kmeans", operator_id, {"clusters": clusters, "rfm_task_id": rfm_task_id}
+    )
     try:
+        if rfm_task_id is None:
+            raise AlgorithmError("没有可用的 RFM 快照，请先运行 RFM")
         rows = db.session.execute(text("""
             SELECT customer_id, recency_days, frequency, monetary
-            FROM ads.customer_rfm ORDER BY customer_id
-        """)).mappings().all()
+            FROM ml.rfm_result
+            WHERE task_id = :rfm_task_id
+            ORDER BY customer_id
+        """), {"rfm_task_id": rfm_task_id}).mappings().all()
         if len(rows) < clusters:
             raise AlgorithmError(f"至少需要 {clusters} 条 RFM 结果，请先运行 RFM 或减少分群数")
         matrix = np.array([
@@ -153,8 +170,15 @@ def run_churn(operator_id, observation_days=90):
     from sklearn.pipeline import make_pipeline
 
     observation_days = max(30, min(int(observation_days), 180))
-    task_id = _create_task("churn", operator_id, {"observation_days": observation_days})
+    rfm_task_id = _latest_rfm_task_id()
+    task_id = _create_task(
+        "churn",
+        operator_id,
+        {"observation_days": observation_days, "rfm_task_id": rfm_task_id},
+    )
     try:
+        if rfm_task_id is None:
+            raise AlgorithmError("没有可用的 RFM 快照，请先运行 RFM")
         training = db.session.execute(text("""
             WITH cutoff AS (SELECT CURRENT_DATE - (:days || ' days')::interval AS dt)
             SELECT c.customer_id,
@@ -184,9 +208,11 @@ def run_churn(operator_id, observation_days=90):
 
         current = db.session.execute(text("""
             SELECT customer_id, recency_days::float AS recency,
-                   frequency::float AS frequency, monetary::float AS monetary
-            FROM ads.customer_rfm ORDER BY customer_id
-        """)).mappings().all()
+                    frequency::float AS frequency, monetary::float AS monetary
+            FROM ml.rfm_result
+            WHERE task_id = :rfm_task_id
+            ORDER BY customer_id
+        """), {"rfm_task_id": rfm_task_id}).mappings().all()
         if not current:
             raise AlgorithmError("没有当前 RFM 特征，请先运行 RFM")
         current_features = np.array([[row["recency"], row["frequency"], row["monetary"]] for row in current])

@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEED_PATH = ROOT / "database" / "demo_commerce_v2.sql"
 INIT_PATH = ROOT / "scripts" / "init_db.py"
 REFUNDS_PATH = ROOT / "app" / "routes" / "refunds.py"
+RETAIL_REPOSITORY_PATH = ROOT / "app" / "repositories" / "retail.py"
 
 
 def test_demo_commerce_seed_exists_and_runs_after_base_seed():
@@ -48,5 +49,11 @@ def test_demo_commerce_seed_contains_required_dataset_and_is_append_only():
 
 def test_refund_form_limits_refundable_payments():
     refunds_source = REFUNDS_PATH.read_text(encoding="utf-8")
+    repository_source = RETAIL_REPOSITORY_PATH.read_text(encoding="utf-8")
 
-    assert "ORDER BY p.paid_at DESC\n        LIMIT 200" in refunds_source
+    assert "refundable_items=RefundRepository.refundable_items()" in refunds_source
+    refundable_query = repository_source.split("def refundable_items", 1)[1].split(
+        "def successful_total", 1
+    )[0]
+    assert "ORDER BY p.paid_at DESC, oi.order_item_id" in refundable_query
+    assert "LIMIT 200" in refundable_query

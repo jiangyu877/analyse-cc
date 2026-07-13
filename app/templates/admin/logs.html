@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}审计日志{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>审计日志</h1><p>追踪登录事件和关键业务操作。</p></div></div>
+<section class="panel mb-3"><div class="panel-head">最近登录</div><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>时间</th><th>账号</th><th>结果</th><th>原因</th><th>IP</th></tr></thead>
+  <tbody>{% for row in login_logs %}<tr><td>{{ row.created_at }}</td><td>{{ row.username }}</td><td>{{ row.status }}</td><td>{{ row.fail_reason or '-' }}</td><td>{{ row.ip_address or '-' }}</td></tr>{% else %}<tr><td colspan="5" class="empty">暂无登录日志</td></tr>{% endfor %}</tbody>
+</table></div></section>
+<section class="panel"><div class="panel-head">最近操作</div><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>时间</th><th>账号</th><th>动作</th><th>对象</th><th>详情</th></tr></thead>
+  <tbody>{% for row in operation_logs %}<tr><td>{{ row.created_at }}</td><td>{{ row.username or '-' }}</td><td>{{ row.action }}</td><td>{{ row.entity_type or '-' }} {{ row.entity_id or '' }}</td><td><code>{{ row.details }}</code></td></tr>{% else %}<tr><td colspan="5" class="empty">暂无操作日志</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

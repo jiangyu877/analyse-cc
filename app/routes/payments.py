@@ -3,14 +3,14 @@ from sqlalchemy import text
 
 from app.extensions import db
 from app.repositories.retail import PaymentRepository
+from app.security.authorization import permission_required
 from app.services.commerce import BusinessError, PaymentService
-from app.utils import login_required, role_required
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/payments")
 
 
 @payments_bp.get("")
-@login_required
+@permission_required("payment.read")
 def index():
     pending_orders = db.session.execute(text("""
         SELECT o.order_id, o.order_no, o.total_amount, c.name AS customer_name
@@ -21,7 +21,7 @@ def index():
 
 
 @payments_bp.post("")
-@role_required("admin", "operator")
+@permission_required("payment.write")
 def create():
     try:
         payment_id = PaymentService.pay(
@@ -32,4 +32,3 @@ def create():
     except (BusinessError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("payments.index"))
-

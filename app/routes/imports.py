@@ -2,13 +2,13 @@ from flask import Blueprint, render_template
 from sqlalchemy import text
 
 from app.extensions import db
-from app.utils import role_required
+from app.security.authorization import permission_required
 
 imports_bp = Blueprint("imports", __name__, url_prefix="/imports")
 
 
 @imports_bp.get("")
-@role_required("admin")
+@permission_required("import.read")
 def index():
     summary = db.session.execute(text("""
         SELECT
@@ -23,4 +23,3 @@ def index():
         FROM ods.import_batch ORDER BY started_at DESC LIMIT 50
     """)).mappings().all()
     return render_template("imports.html", summary=summary, batches=batches)
-

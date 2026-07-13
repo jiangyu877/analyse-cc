@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}账号与角色{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>账号与角色</h1><p>账号通过一个或多个正式角色获得资源权限。</p></div></div>
+<div class="split">
+  <section class="panel">
+    <div class="panel-head">创建账号</div>
+    <div class="panel-body">
+      <form method="post" action="{{ url_for('admin.create_account') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3"><label class="form-label">用户名</label><input class="form-control" name="username" required maxlength="64"></div>
+        <div class="mb-3"><label class="form-label">姓名</label><input class="form-control" name="full_name" maxlength="128"></div>
+        <div class="mb-3"><label class="form-label">初始密码</label><input class="form-control" name="password" type="password" required minlength="10"></div>
+        <div class="mb-3"><label class="form-label">角色</label>
+          {% for role in roles %}<label class="form-check"><input class="form-check-input" type="checkbox" name="role_codes" value="{{ role.role_code }}"><span class="form-check-label">{{ role.role_name }}</span></label>{% endfor %}
+        </div>
+        <button class="btn btn-primary"><i class="ti ti-user-plus"></i> 创建账号</button>
+      </form>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">系统账号</div>
+    <div class="table-responsive"><table class="table table-vcenter mb-0">
+      <thead><tr><th>账号</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead>
+      <tbody>{% for account in accounts %}<tr>
+        <td><strong>{{ account.username }}</strong><div class="text-muted small">{{ account.full_name }}</div></td>
+        <td>{% for role in account.roles %}<span class="badge bg-blue-lt me-1">{{ role }}</span>{% endfor %}</td>
+        <td><span class="badge {{ 'bg-green-lt' if account.is_active else 'bg-red-lt' }}">{{ '启用' if account.is_active else '停用' }}</span></td>
+        <td>{{ account.last_login_at or '从未登录' }}</td>
+        <td>
+          {% if actor_is_super_admin or 'super_admin' not in account.roles %}
+          <form method="post" action="{{ url_for('admin.toggle_account', account_id=account.account_id) }}" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary">{{ '停用' if account.is_active else '启用' }}</button></form>
+          <form method="post" action="{{ url_for('admin.reset_password', account_id=account.account_id) }}" class="d-inline-flex gap-1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control form-control-sm" name="password" type="password" minlength="10" placeholder="新密码" required><button class="btn btn-sm btn-outline-primary">重置</button></form>
+          {% else %}<span class="text-muted small">仅超级管理员可操作</span>{% endif %}
+        </td>
+      </tr>{% else %}<tr><td colspan="5" class="empty">暂无账号</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endblock %}

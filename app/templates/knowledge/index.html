@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}知识库{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>知识库</h1></div></div>
+{% if can('knowledge.write') %}
+<div class="split mb-3">
+  <section class="panel">
+    <div class="panel-head">新建知识库</div>
+    <div class="panel-body"><form method="post" action="{{ url_for('knowledge.create_base') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3"><label class="form-label">编码</label><input class="form-control" name="base_code" maxlength="64" required></div>
+      <div class="mb-3"><label class="form-label">名称</label><input class="form-control" name="name" maxlength="160" required></div>
+      <div class="mb-3"><label class="form-label">说明</label><textarea class="form-control" name="description" maxlength="500"></textarea></div>
+      <button class="btn btn-primary"><i class="ti ti-database-plus"></i> 创建</button>
+    </form></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">上传文档</div>
+    <div class="panel-body"><form method="post" enctype="multipart/form-data" action="{{ url_for('knowledge.upload_document') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3"><label class="form-label">知识库</label><select class="form-select" name="knowledge_base_id" required><option value="">请选择</option>{% for base in knowledge_bases if base.status == 'active' %}<option value="{{ base.knowledge_base_id }}">{{ base.name }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label class="form-label">标题</label><input class="form-control" name="title" maxlength="200" required></div>
+      <div class="mb-3"><label class="form-label">文档</label><input class="form-control" type="file" name="document" accept=".txt,.md,.docx" required></div>
+      <button class="btn btn-primary"><i class="ti ti-upload"></i> 上传并解析</button>
+    </form></div>
+  </section>
+</div>
+{% endif %}
+<section class="panel mb-3">
+  <div class="panel-head">知识库列表</div>
+  <div class="table-responsive"><table class="table mb-0"><thead><tr><th>编码</th><th>名称</th><th>文档</th><th>已发布</th><th>状态</th></tr></thead><tbody>
+  {% for base in knowledge_bases %}<tr><td><code>{{ base.base_code }}</code></td><td><strong>{{ base.name }}</strong><div class="text-muted small">{{ base.description }}</div></td><td>{{ base.document_count }}</td><td>{{ base.published_count }}</td><td><span class="badge {{ 'bg-green-lt' if base.status == 'active' else 'bg-secondary-lt' }}">{{ base.status }}</span></td></tr>{% else %}<tr><td colspan="5" class="empty">暂无知识库</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="panel">
+  <div class="panel-head">文档</div>
+  <div class="table-responsive"><table class="table mb-0"><thead><tr><th>文档</th><th>知识库</th><th>版本</th><th>分块</th><th>状态</th><th>操作</th></tr></thead><tbody>
+  {% for document in documents %}<tr>
+    <td><strong>{{ document.title }}</strong><div class="text-muted small">{{ document.original_name }} · {{ document.file_size }} B</div>{% if document.error_message %}<div class="text-danger small">{{ document.error_message }}</div>{% endif %}</td>
+    <td>{{ document.base_name }}</td><td>v{{ document.version }}</td><td>{{ document.chunk_count }}</td>
+    <td><span class="badge {{ 'bg-green-lt' if document.is_published else 'bg-blue-lt' if document.status == 'ready' else 'bg-red-lt' if document.status == 'failed' else 'bg-secondary-lt' }}">{{ 'published' if document.is_published else document.status }}</span></td>
+    <td>{% if can('knowledge.publish') and document.status == 'ready' and not document.is_published %}<form class="d-inline" method="post" action="{{ url_for('knowledge.publish_document', document_id=document.document_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-success"><i class="ti ti-send"></i> 发布</button></form>{% endif %}{% if can('knowledge.publish') and document.status != 'disabled' %}<form class="d-inline" method="post" action="{{ url_for('knowledge.disable_document', document_id=document.document_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary"><i class="ti ti-ban"></i> 停用</button></form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="6" class="empty">暂无文档</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
+

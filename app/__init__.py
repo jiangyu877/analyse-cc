@@ -26,6 +26,9 @@ def create_app(config_object=None):
     from app.routes.algorithms import algorithms_bp
     from app.routes.system import system_bp
     from app.routes.imports import imports_bp
+    from app.routes.admin import admin_bp
+    from app.routes.knowledge import knowledge_bp
+    from app.routes.qa import qa_bp
 
     for blueprint in (
         auth_bp,
@@ -39,6 +42,9 @@ def create_app(config_object=None):
         custom_query_bp,
         system_bp,
         imports_bp,
+        admin_bp,
+        knowledge_bp,
+        qa_bp,
     ):
         app.register_blueprint(blueprint)
 
@@ -55,6 +61,17 @@ def create_app(config_object=None):
             "connect-src 'self'; frame-ancestors 'self'",
         )
         return response
+
+    @app.context_processor
+    def authorization_context():
+        from flask import session
+
+        from app.repositories.auth import AccountRepository
+
+        permissions = frozenset()
+        if session.get("user_id") is not None:
+            permissions = AccountRepository.permissions(session["user_id"])
+        return {"can": lambda permission: permission in permissions}
 
     @app.errorhandler(400)
     def bad_request(error):

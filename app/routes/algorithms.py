@@ -2,8 +2,8 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from sqlalchemy import text
 
 from app.extensions import db
+from app.security.authorization import permission_required
 from app.services.algorithms import AlgorithmError, run_churn, run_kmeans, run_rfm
-from app.utils import login_required, role_required
 
 algorithms_bp = Blueprint("algorithms", __name__, url_prefix="/algorithms")
 
@@ -97,7 +97,19 @@ def _kmeans_result(task_id, metrics):
                AVG(r.frequency)::float AS avg_frequency,
                AVG(r.monetary)::float AS avg_monetary
         FROM ml.cluster_result cr
-        JOIN ads.customer_rfm r ON r.customer_id = cr.customer_id
+        JOIN ml.model_task task ON task.task_id = cr.task_id
+        JOIN ml.rfm_result r ON r.customer_id = cr.customer_id
+          AND r.task_id = COALESCE(
+              NULLIF(task.parameters->>'rfm_task_id', '')::bigint,
+              (
+                  SELECT source.task_id
+                  FROM ml.model_task source
+                  WHERE source.task_type = 'rfm' AND source.status = 'success'
+                    AND source.finished_at <= task.started_at
+                  ORDER BY source.finished_at DESC, source.task_id DESC
+                  LIMIT 1
+              )
+          )
         WHERE cr.task_id = :task_id
         GROUP BY cr.cluster_label
         ORDER BY cr.cluster_label
@@ -165,8 +177,20 @@ def _churn_result(task_id, metrics):
                p.churn_probability::float AS churn_probability,
                r.recency_days, r.frequency, r.monetary::float AS monetary
         FROM ml.churn_prediction p
+        JOIN ml.model_task task ON task.task_id = p.task_id
         JOIN biz.customer c ON c.customer_id = p.customer_id
-        LEFT JOIN ads.customer_rfm r ON r.customer_id = p.customer_id
+        LEFT JOIN ml.rfm_result r ON r.customer_id = p.customer_id
+          AND r.task_id = COALESCE(
+              NULLIF(task.parameters->>'rfm_task_id', '')::bigint,
+              (
+                  SELECT source.task_id
+                  FROM ml.model_task source
+                  WHERE source.task_type = 'rfm' AND source.status = 'success'
+                    AND source.finished_at <= task.started_at
+                  ORDER BY source.finished_at DESC, source.task_id DESC
+                  LIMIT 1
+              )
+          )
         WHERE p.task_id = :task_id
         ORDER BY p.churn_probability DESC, c.customer_id
         LIMIT 10
@@ -208,7 +232,7 @@ def _load_result(task):
 
 
 @algorithms_bp.get("")
-@login_required
+@permission_required("model.read")
 def index():
     tasks = db.session.execute(text("""
         SELECT t.task_id, t.task_type, t.status, t.parameters, t.started_at,
@@ -235,7 +259,7 @@ def index():
 
 
 @algorithms_bp.post("/run/<task_type>")
-@role_required("admin", "analyst")
+@permission_required("model.run")
 def run(task_type):
     try:
         if task_type == "rfm":

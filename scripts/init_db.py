@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ ACCOUNT_PASSWORDS = {
     "operator": "OPERATOR_PASSWORD",
     "analyst": "ANALYST_PASSWORD",
 }
+MIGRATION_LOCK_KEY = 746842291003441620
 
 
 def connect():
@@ -35,6 +37,70 @@ def run_script(cursor, filename):
     path = ROOT / "database" / filename
     cursor.execute(path.read_text(encoding="utf-8"))
     print(f"applied: {filename}")
+
+
+def apply_migrations(connection, migrations_dir=None):
+    migrations_dir = Path(migrations_dir or ROOT / "database" / "migrations")
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    paths = sorted(migrations_dir.glob("*.sql"))
+    locked = False
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_lock(%s)", (MIGRATION_LOCK_KEY,))
+        connection.commit()
+        locked = True
+
+        with connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS audit.schema_migration (
+                        version VARCHAR(80) PRIMARY KEY,
+                        checksum VARCHAR(64) NOT NULL,
+                        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )
+                """)
+
+        with connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT version, checksum FROM audit.schema_migration")
+                applied = dict(cursor.fetchall())
+
+        files = {path.name: path for path in paths}
+        missing = sorted(set(applied) - set(files))
+        if missing:
+            raise RuntimeError(f"applied migration files are missing: {', '.join(missing)}")
+
+        for version, checksum in applied.items():
+            current = hashlib.sha256(files[version].read_bytes()).hexdigest()
+            if current != checksum:
+                raise RuntimeError(f"migration checksum changed: {version}")
+
+        pending = [path for path in paths if path.name not in applied]
+        if applied and pending:
+            last_applied = max(applied)
+            out_of_order = [path.name for path in pending if path.name < last_applied]
+            if out_of_order:
+                raise RuntimeError(
+                    "pending migrations are out of order after "
+                    f"{last_applied}: {', '.join(out_of_order)}"
+                )
+
+        for path in pending:
+            checksum = hashlib.sha256(path.read_bytes()).hexdigest()
+            with connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(path.read_text(encoding="utf-8"))
+                    cursor.execute(
+                        "INSERT INTO audit.schema_migration(version, checksum) VALUES (%s, %s)",
+                        (path.name, checksum),
+                    )
+            print(f"migrated: {path.name}")
+    finally:
+        if locked:
+            connection.rollback()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK_KEY,))
+            connection.commit()
 
 
 def configure_account_passwords(cursor, required=False):
@@ -65,18 +131,21 @@ def main():
     args = parser.parse_args()
 
     connection = connect()
-    connection.autocommit = True
     try:
         with connection.cursor() as cursor:
             run_script(cursor, "v2_schema.sql")
             run_script(cursor, "v2_seed.sql")
             run_script(cursor, "demo_commerce_v2.sql")
+        connection.commit()
+        apply_migrations(connection)
+        with connection.cursor() as cursor:
             configure_account_passwords(
                 cursor,
                 required=os.environ.get("FLASK_ENV", "development").lower() == "production",
             )
             if args.migrate_legacy:
                 run_script(cursor, "migrate_v1_to_v2.sql")
+        connection.commit()
     finally:
         connection.close()
 

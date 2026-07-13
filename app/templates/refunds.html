@@ -1,5 +1,87 @@
-{% extends "base.html" %}{% block title %}退款管理{% endblock %}
-{% block content %}<div class="page-head"><div><h1>退款管理</h1><p>退款金额受可退余额约束，并生成负向消费流水</p></div></div><div class="split">
-{% if session.role in ['admin','operator'] %}<section class="panel"><div class="panel-head">发起退款</div><div class="panel-body"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="mb-3"><label class="form-label">支付记录 *</label><select class="form-select" name="payment_id" required><option value="">请选择</option>{% for p in refundable %}<option value="{{ p.payment_id }}">{{ p.payment_no }} · {{ p.customer_name }} · 可退 ¥{{ p.remaining }}</option>{% endfor %}</select></div><div class="mb-3"><label class="form-label">退款金额 *</label><input class="form-control" type="number" name="amount" min="0.01" step="0.01" required></div><div class="mb-3"><label class="form-label">退款原因 *</label><textarea class="form-control" name="reason" maxlength="255" required></textarea></div><button class="btn btn-primary"><i class="ti ti-cash-banknote-off"></i> 确认退款</button></form></div></section>{% endif %}
-<section class="panel"><div class="panel-head">退款记录</div><div class="table-responsive"><table class="table"><thead><tr><th>退款号</th><th>订单</th><th>客户</th><th>金额</th><th>原因</th><th>状态</th><th>时间</th></tr></thead><tbody>{% for r in refunds %}<tr><td>{{ r.refund_no }}</td><td>{{ r.order_no }}</td><td>{{ r.customer_name }}</td><td class="money">¥{{ r.amount }}</td><td>{{ r.reason }}</td><td>{{ r.status }}</td><td>{{ r.refunded_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>{% else %}<tr><td colspan="7" class="empty">暂无退款记录</td></tr>{% endfor %}</tbody></table></div></section></div>{% endblock %}
-
+{% extends "base.html" %}
+{% block title %}退款管理{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>退款管理</h1><p>退款先申请后审核，审核通过后原子更新库存、订单和消费流水。</p></div></div>
+<div class="split">
+  {% if can('refund.request') %}
+  <section class="panel">
+    <div class="panel-head">提交退款申请</div>
+    <div class="panel-body">
+      <form method="post" action="{{ url_for('refunds.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">支付订单</label>
+          <select class="form-select" name="payment_id" id="refund-payment" required>
+            <option value="">请选择支付订单</option>
+            {% for payment_id, payment_items in refundable_items|groupby('payment_id') %}
+            {% set payment = payment_items[0] %}
+            <option value="{{ payment_id }}">
+              {{ payment.payment_no }} · {{ payment.order_no }} · {{ payment.customer_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="table-responsive mb-3"><table class="table table-vcenter mb-0">
+          <thead><tr><th>商品</th><th style="width:120px">退货数量</th></tr></thead>
+          <tbody>
+          {% for item in refundable_items %}
+          <tr class="refund-line" data-payment="{{ item.payment_id }}">
+            <td><label class="form-check mb-0"><input class="form-check-input refund-item" type="checkbox" name="order_item_id" value="{{ item.order_item_id }}"><span class="form-check-label">{{ item.product_name }} · 可退{{ item.remaining_quantity }}件</span></label></td>
+            <td><input class="form-control refund-quantity" type="number" name="quantity_{{ item.order_item_id }}" min="1" max="{{ item.remaining_quantity }}" step="1" value="1"></td>
+          </tr>
+          {% else %}<tr><td colspan="2" class="empty">暂无可退款商品</td></tr>{% endfor %}
+          </tbody>
+        </table></div>
+        <div class="mb-3"><label class="form-label">退款原因</label><textarea class="form-control" name="reason" maxlength="255" required></textarea></div>
+        <button class="btn btn-primary"><i class="ti ti-file-invoice"></i> 提交审核</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+  <section class="panel">
+    <div class="panel-head">退款记录</div>
+    <div class="table-responsive"><table class="table table-vcenter mb-0">
+      <thead><tr><th>退款号</th><th>订单/客户</th><th>金额/数量</th><th>状态</th><th>审核</th></tr></thead>
+      <tbody>{% for refund in refunds %}<tr>
+        <td><strong>{{ refund.refund_no }}</strong><div class="text-muted small">{{ refund.created_at.strftime('%Y-%m-%d %H:%M') }}</div></td>
+        <td>{{ refund.order_no }}<div class="text-muted small">{{ refund.customer_name }} · {{ refund.reason }}</div></td>
+        <td class="money">¥{{ refund.amount }}<div class="text-muted small">{% if refund.has_item_details %}申请{{ refund.requested_quantity }}件 / 回补{{ refund.returned_quantity }}件{% else %}历史记录 · 无商品明细{% endif %}</div></td>
+        <td><span class="badge {{ 'bg-yellow-lt' if refund.status == 'pending' else 'bg-green-lt' if refund.status == 'success' else 'bg-red-lt' }}">{{ refund.status }}</span></td>
+        <td>
+          {% if refund.status == 'pending' and can('refund.approve') and refund.has_item_details %}
+          <form method="post" action="{{ url_for('refunds.approve', refund_id=refund.refund_id) }}" class="mb-1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control form-control-sm mb-1" name="review_note" maxlength="255" placeholder="审核意见"><button class="btn btn-sm btn-success">通过</button></form>
+          <form method="post" action="{{ url_for('refunds.reject', refund_id=refund.refund_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="review_note" value="不符合退款规则"><button class="btn btn-sm btn-outline-danger">拒绝</button></form>
+          {% elif refund.status == 'pending' and can('refund.approve') %}
+          <form method="post" action="{{ url_for('refunds.reject', refund_id=refund.refund_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="review_note" value="历史退款缺少商品级明细，转人工核对"><button class="btn btn-sm btn-outline-danger">转人工核对</button></form>
+          {% else %}
+          <span class="small">{{ refund.reviewer_name or '-' }}</span><div class="text-muted small">{{ refund.review_note or '等待审核' }}</div>
+          {% endif %}
+        </td>
+      </tr>{% else %}<tr><td colspan="5" class="empty">暂无退款记录</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const paymentSelect = document.getElementById('refund-payment');
+  const refundLines = Array.from(document.querySelectorAll('.refund-line'));
+  const syncRefundLines = () => {
+    const paymentId = paymentSelect?.value || '';
+    refundLines.forEach((line) => {
+      const active = Boolean(paymentId) && line.dataset.payment === paymentId;
+      const checkbox = line.querySelector('.refund-item');
+      const quantity = line.querySelector('.refund-quantity');
+      line.hidden = !active;
+      checkbox.disabled = !active;
+      if (!active) checkbox.checked = false;
+      quantity.disabled = !active || !checkbox.checked;
+    });
+  };
+  paymentSelect?.addEventListener('change', syncRefundLines);
+  refundLines.forEach((line) => {
+    line.querySelector('.refund-item')?.addEventListener('change', syncRefundLines);
+  });
+  syncRefundLines();
+</script>
+{% endblock %}

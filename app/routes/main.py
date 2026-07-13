@@ -1,13 +1,13 @@
 from flask import Blueprint, render_template
 
 from app.repositories.retail import DashboardRepository
-from app.utils import login_required
+from app.security.authorization import permission_required
 
 main_bp = Blueprint("main", __name__)
 
 
 @main_bp.get("/")
-@login_required
+@permission_required("analysis.read")
 def dashboard():
     summary = DashboardRepository.summary()
     trend = DashboardRepository.trend()
@@ -18,4 +18,3 @@ def dashboard():
         trend_values=[float(row["net_amount"]) for row in trend],
         recent_orders=DashboardRepository.recent_orders(),
     )
-

@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from sqlalchemy import text
 
 from app.extensions import db
-from app.utils import role_required
+from app.security.authorization import permission_required
 
 custom_query_bp = Blueprint("custom_query", __name__)
 
@@ -15,13 +15,13 @@ BLOCKED_TOKENS = (
 
 
 @custom_query_bp.get("/sql-lab")
-@role_required("admin")
+@permission_required("sql.execute")
 def custom_query_page():
     return render_template("custom_query.html")
 
 
 @custom_query_bp.post("/sql-lab/execute")
-@role_required("admin")
+@permission_required("sql.execute")
 def execute_custom():
     sql = (request.get_json(silent=True) or {}).get("sql", "").strip().rstrip(";")
     normalized = f" {sql.upper()} "

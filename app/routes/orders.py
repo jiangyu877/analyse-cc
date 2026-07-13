@@ -1,14 +1,14 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.repositories.retail import CustomerRepository, OrderRepository, ProductRepository
+from app.security.authorization import permission_required
 from app.services.commerce import BusinessError, OrderService
-from app.utils import login_required, role_required
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/orders")
 
 
 @orders_bp.get("")
-@login_required
+@permission_required("order.read")
 def index():
     return render_template(
         "orders.html",
@@ -19,7 +19,7 @@ def index():
 
 
 @orders_bp.post("")
-@role_required("admin", "operator")
+@permission_required("order.write")
 def create():
     product_ids = request.form.getlist("product_id")
     quantities = request.form.getlist("quantity")
@@ -37,4 +37,3 @@ def create():
     except (BusinessError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("orders.index"))
-

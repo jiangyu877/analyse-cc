@@ -53,16 +53,23 @@
     <div class="brand"><i class="ti ti-building-store"></i><span>零售交易分析平台</span></div>
     <nav>
       <div class="nav-label">业务总览</div>
-      <a class="side-link {{ 'active' if request.endpoint == 'main.dashboard' }}" href="{{ url_for('main.dashboard') }}"><i class="ti ti-layout-dashboard"></i>仪表盘</a>
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('customers.') }}" href="{{ url_for('customers.index') }}"><i class="ti ti-users"></i>客户360</a>
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('products.') }}" href="{{ url_for('products.index') }}"><i class="ti ti-package"></i>商品与库存</a>
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('orders.') }}" href="{{ url_for('orders.index') }}"><i class="ti ti-receipt"></i>订单</a>
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('payments.') }}" href="{{ url_for('payments.index') }}"><i class="ti ti-credit-card"></i>支付</a>
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('refunds.') }}" href="{{ url_for('refunds.index') }}"><i class="ti ti-cash-banknote-off"></i>退款</a>
+      {% if can('analysis.read') %}<a class="side-link {{ 'active' if request.endpoint == 'main.dashboard' }}" href="{{ url_for('main.dashboard') }}"><i class="ti ti-layout-dashboard"></i>仪表盘</a>{% endif %}
+      {% if can('customer.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('customers.') }}" href="{{ url_for('customers.index') }}"><i class="ti ti-users"></i>客户360</a>{% endif %}
+      {% if can('product.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('products.') }}" href="{{ url_for('products.index') }}"><i class="ti ti-package"></i>商品与库存</a>{% endif %}
+      {% if can('order.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('orders.') }}" href="{{ url_for('orders.index') }}"><i class="ti ti-receipt"></i>订单</a>{% endif %}
+      {% if can('payment.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('payments.') }}" href="{{ url_for('payments.index') }}"><i class="ti ti-credit-card"></i>支付</a>{% endif %}
+      {% if can('refund.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('refunds.') }}" href="{{ url_for('refunds.index') }}"><i class="ti ti-cash-banknote-off"></i>退款</a>{% endif %}
       <div class="nav-label">数据与模型</div>
-      {% if session.get('role') == 'admin' %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('imports.') }}" href="{{ url_for('imports.index') }}"><i class="ti ti-database-import"></i>数据导入</a>{% endif %}
-      <a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('algorithms.') }}" href="{{ url_for('algorithms.index') }}"><i class="ti ti-chart-dots-3"></i>算法任务</a>
-      {% if session.get('role') == 'admin' %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('custom_query.') }}" href="{{ url_for('custom_query.custom_query_page') }}"><i class="ti ti-database-search"></i>只读 SQL 实验</a>{% endif %}
+      {% if can('import.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('imports.') }}" href="{{ url_for('imports.index') }}"><i class="ti ti-database-import"></i>数据导入</a>{% endif %}
+      {% if can('model.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('algorithms.') }}" href="{{ url_for('algorithms.index') }}"><i class="ti ti-chart-dots-3"></i>算法任务</a>{% endif %}
+      {% if can('sql.execute') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('custom_query.') }}" href="{{ url_for('custom_query.custom_query_page') }}"><i class="ti ti-database-search"></i>只读 SQL 实验</a>{% endif %}
+      {% if can('knowledge.read') or can('qa.read') %}<div class="nav-label">知识与客服</div>{% endif %}
+      {% if can('knowledge.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('knowledge.') }}" href="{{ url_for('knowledge.index') }}"><i class="ti ti-books"></i>知识库</a>{% endif %}
+      {% if can('qa.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint == 'qa.chat' }}" href="{{ url_for('qa.chat') }}"><i class="ti ti-message-chatbot"></i>QA 客服</a>{% endif %}
+      {% if can('qa.handle') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('qa.') and request.endpoint != 'qa.chat' }}" href="{{ url_for('qa.tickets') }}"><i class="ti ti-ticket"></i>人工工单</a>{% endif %}
+      {% if can('system.manage') or can('audit.read') %}<div class="nav-label">系统治理</div>{% endif %}
+      {% if can('system.manage') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint.startswith('admin.accounts') }}" href="{{ url_for('admin.accounts') }}"><i class="ti ti-user-shield"></i>账号与角色</a>{% endif %}
+      {% if can('audit.read') %}<a class="side-link {{ 'active' if request.endpoint and request.endpoint == 'admin.logs' }}" href="{{ url_for('admin.logs') }}"><i class="ti ti-list-search"></i>审计日志</a>{% endif %}
     </nav>
   </aside>
   <div class="main">

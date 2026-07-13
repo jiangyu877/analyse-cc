@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 
 
 load_dotenv()
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _database_url():
@@ -39,7 +41,13 @@ class Config:
     SQL_QUERY_MAX_ROWS = min(int(os.environ.get("SQL_QUERY_MAX_ROWS", "200")), 1000)
     TRUST_PROXY = os.environ.get("TRUST_PROXY", "false").lower() == "true"
     GRADIO_PUBLIC_URL = os.environ.get("GRADIO_PUBLIC_URL", "").strip().rstrip("/")
-    MAX_CONTENT_LENGTH = 2 * 1024 * 1024
+    MAX_UPLOAD_MB = min(max(int(os.environ.get("MAX_UPLOAD_MB", "8")), 1), 20)
+    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
+    KNOWLEDGE_UPLOAD_DIR = os.environ.get(
+        "KNOWLEDGE_UPLOAD_DIR", str(ROOT / "instance" / "knowledge_uploads")
+    )
+    QA_TOP_K = min(max(int(os.environ.get("QA_TOP_K", "5")), 1), 10)
+    QA_MIN_MATCH_SCORE = min(max(float(os.environ.get("QA_MIN_MATCH_SCORE", "0.2")), 0), 1)
 
     @classmethod
     def validate(cls):

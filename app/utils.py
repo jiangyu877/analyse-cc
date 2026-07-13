@@ -1,7 +1,7 @@
 from functools import wraps
 
 import bcrypt
-from flask import abort, redirect, request, session, url_for
+from flask import redirect, request, session, url_for
 from sqlalchemy import text
 
 from app.extensions import db
@@ -27,19 +27,6 @@ def login_required(view):
     return wrapped
 
 
-def role_required(*roles):
-    def decorator(view):
-        @wraps(view)
-        def wrapped(*args, **kwargs):
-            if "user_id" not in session:
-                return redirect(url_for("auth.login", next=request.path))
-            if session.get("role") not in roles:
-                abort(403)
-            return view(*args, **kwargs)
-        return wrapped
-    return decorator
-
-
 def audit(action, entity_type=None, entity_id=None, details=None):
     db.session.execute(text("""
         INSERT INTO audit.operation_log
@@ -61,4 +48,3 @@ def validate_password(password):
     if not any(ch.isalpha() for ch in password) or not any(ch.isdigit() for ch in password):
         return "密码必须同时包含字母和数字"
     return None
-
