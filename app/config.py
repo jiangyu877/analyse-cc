@@ -48,6 +48,13 @@ class Config:
     )
     QA_TOP_K = min(max(int(os.environ.get("QA_TOP_K", "5")), 1), 10)
     QA_MIN_MATCH_SCORE = min(max(float(os.environ.get("QA_MIN_MATCH_SCORE", "0.2")), 0), 1)
+    QA_AGENT_ENABLED = os.environ.get("QA_AGENT_ENABLED", "false").lower() == "true"
+    AI_BASE_URL = os.environ.get("AI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+    AI_API_KEY = os.environ.get("AI_API_KEY", "").strip()
+    AI_MODEL = os.environ.get("AI_MODEL", "").strip()
+    AI_TIMEOUT_SECONDS = min(max(float(os.environ.get("AI_TIMEOUT_SECONDS", "8")), 1), 30)
+    AI_MAX_TOOL_CALLS = min(max(int(os.environ.get("AI_MAX_TOOL_CALLS", "2")), 1), 3)
+    AI_MAX_RESPONSE_CHARS = min(max(int(os.environ.get("AI_MAX_RESPONSE_CHARS", "800")), 200), 2000)
 
     @classmethod
     def validate(cls):

@@ -3,6 +3,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from app.extensions import db
 from app.repositories.qa import QARepository
 from app.security.authorization import permission_required
+from app.services.agent import AgentService
 from app.services.rag import QAError, RagService
 
 
@@ -19,7 +20,8 @@ def chat():
         selected = sessions[0]
     messages = QARepository.list_messages(selected["session_id"]) if selected else []
     return render_template(
-        "qa/chat.html", sessions=sessions, selected_session=selected, messages=messages
+        "qa/chat.html", sessions=sessions, selected_session=selected, messages=messages,
+        agent_enabled=AgentService.enabled(),
     )
 
 
@@ -27,13 +29,13 @@ def chat():
 @permission_required("qa.read")
 def ask():
     try:
-        result = RagService.ask(
+        result = AgentService.ask(
             request.form.get("session_id"),
             request.form.get("question"),
             session["user_id"],
         )
         if result["ticket_id"]:
-            flash(f"未找到可靠答案，已创建人工工单 {result['ticket_id']}", "warning")
+            flash(f"已创建人工工单 {result['ticket_id']}", "warning")
         return redirect(url_for("qa.chat", session_id=result["session_id"], _anchor="latest"))
     except QAError as exc:
         db.session.rollback()
@@ -91,4 +93,3 @@ def resolve_ticket(ticket_id):
         db.session.rollback()
         flash(str(exc), "danger")
     return redirect(url_for("qa.tickets"))
-
