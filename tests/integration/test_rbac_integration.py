@@ -75,6 +75,7 @@ def test_migrations_are_idempotent_and_seed_documented_roles(isolated_database):
         "006_ads_results.sql",
         "007_model_registry_and_results.sql",
         "008_background_jobs.sql",
+        "009_knowledge_publish_guard.sql",
     ]
     for version, checksum in migrations:
         assert checksum == hashlib.sha256((migrations_dir / version).read_bytes()).hexdigest()

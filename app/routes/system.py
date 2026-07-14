@@ -26,7 +26,7 @@ def ready():
                     WHERE version = :version
                 )
             """),
-            {"version": "008_background_jobs.sql"},
+            {"version": "009_knowledge_publish_guard.sql"},
         ).scalar_one()
         db.session.rollback()
         if not migrated:

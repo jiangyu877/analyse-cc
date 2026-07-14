@@ -1,6 +1,6 @@
 # Deployment
 
-Requirements: Python 3.12, PostgreSQL 18, and `PG_BIN_DIR` containing `pg_dump.exe`, `pg_restore.exe`, and `psql.exe`. Copy `.env.example` to `.env`, set `DATABASE_URL` and secrets, then run `python scripts/init_db.py` (migration 008 is required).
+Requirements: Python 3.12, PostgreSQL 18, and `PG_BIN_DIR` containing `pg_dump.exe`, `pg_restore.exe`, and `psql.exe`. Copy `.env.example` to `.env`, set `DATABASE_URL` and secrets, then run `python scripts/init_db.py` (migrations 008 and 009 are required).
 
 Run web and worker locally with `python serve.py` and `python worker.py`. Docker Compose starts both; the worker has no public port. `GET /healthz` is process liveness, while `/readyz` verifies PostgreSQL and migration 008.
 

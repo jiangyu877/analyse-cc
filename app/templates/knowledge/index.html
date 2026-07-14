@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}知识库{% endblock %}
+{% block extra_head %}<style>
+.dataset-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) minmax(220px,1.2fr);gap:12px;align-items:end}.dataset-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.dataset-meta{display:flex;gap:8px;flex-wrap:wrap}.dataset-meta code{font-size:11px;background:#eef2f4;color:#394450;padding:3px 6px;border-radius:3px}@media(max-width:850px){.dataset-row{grid-template-columns:1fr}.dataset-actions{align-items:flex-start;flex-direction:column}}
+</style>{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>知识库</h1></div></div>
+<div class="page-head"><div><h1>知识库</h1><p>维护业务文档与标准问答，发布后立即供 QA 客服检索</p></div>{% if can('qa.read') %}<a class="btn btn-outline-primary" href="{{ url_for('qa.chat') }}"><i class="ti ti-message-chatbot"></i> 测试问答</a>{% endif %}</div>
 {% if can('knowledge.write') %}
 <div class="split mb-3">
   <section class="panel">
@@ -25,6 +28,18 @@
     </form></div>
   </section>
 </div>
+<section class="panel mb-3" id="dataset-import">
+  <div class="panel-head"><span><i class="ti ti-table-import me-1"></i>导入问答数据集</span><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('knowledge.download_dataset_template') }}"><i class="ti ti-download"></i> 下载 FAQ 模板</a></div>
+  <div class="panel-body"><form method="post" enctype="multipart/form-data" action="{{ url_for('knowledge.upload_dataset') }}" id="faq-dataset-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="dataset-row mb-3">
+      <div><label class="form-label">知识库</label><select class="form-select" name="knowledge_base_id" required><option value="">请选择</option>{% for base in knowledge_bases if base.status == 'active' %}<option value="{{ base.knowledge_base_id }}">{{ base.name }}</option>{% endfor %}</select></div>
+      <div><label class="form-label">数据集名称</label><input class="form-control" name="title" maxlength="200" value="标准问答" required></div>
+      <div><label class="form-label">CSV / XLSX 文件</label><input class="form-control" type="file" name="dataset" accept=".csv,.xlsx" required></div>
+    </div>
+    <div class="dataset-actions"><div><div class="dataset-meta"><code>问题 *</code><code>答案 *</code><code>分类</code><code>关键词</code></div>{% if can('knowledge.publish') %}<label class="form-check mt-2"><input class="form-check-input" type="checkbox" name="publish_now" value="true" checked><span class="form-check-label">导入后立即发布</span></label>{% endif %}</div><button class="btn btn-primary" type="submit"><i class="ti ti-sparkles"></i> 导入问答</button></div>
+  </form></div>
+</section>
 {% endif %}
 <section class="panel mb-3">
   <div class="panel-head">知识库列表</div>
@@ -44,4 +59,6 @@
   </tbody></table></div>
 </section>
 {% endblock %}
-
+{% block scripts %}<script>
+document.getElementById('faq-dataset-form')?.addEventListener('submit',function(){const button=this.querySelector('button[type="submit"]');button.disabled=true;button.innerHTML='<i class="ti ti-loader-2"></i> 正在导入';});
+</script>{% endblock %}

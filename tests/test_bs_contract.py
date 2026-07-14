@@ -93,7 +93,7 @@ def test_health_and_readiness_have_separate_database_contracts(monkeypatch):
         if "audit.schema_migration" in statement
     ]
     assert len(migration_calls) == 1
-    assert migration_calls[0][1] == {"version": "008_background_jobs.sql"}
+    assert migration_calls[0][1] == {"version": "009_knowledge_publish_guard.sql"}
 
 
 def test_job_status_enforces_saved_permission_and_exposes_only_safe_fields(monkeypatch):
