@@ -18,7 +18,12 @@ def test_render_blueprint_bootstraps_database_and_secrets():
     assert "python scripts/bootstrap_cloud.py && python serve.py" in blueprint
     assert "property: connectionString" in blueprint
     assert "key: SECRET_KEY" in blueprint
-    assert blueprint.count("sync: false") == 3
+    assert blueprint.count("sync: false") == 5
+    for key in (
+        "AI_API_KEY", "AI_MODEL", "ADMIN_PASSWORD", "OPERATOR_PASSWORD",
+        "ANALYST_PASSWORD",
+    ):
+        assert f"key: {key}" in blueprint
     bootstrap = (ROOT / "scripts" / "bootstrap_cloud.py").read_text(encoding="utf-8")
     assert '"--transactions", str(transactions)' in bootstrap
     assert 'transactions < 50000' in (ROOT / "scripts" / "import_demo_data.py").read_text(encoding="utf-8")

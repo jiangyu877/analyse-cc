@@ -34,6 +34,20 @@ services:
         value: "5000"
       - key: DEMO_TRANSACTIONS
         value: "50000"
+      - key: QA_AGENT_ENABLED
+        value: "false"
+      - key: AI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AI_TIMEOUT_SECONDS
+        value: "8"
+      - key: AI_MAX_TOOL_CALLS
+        value: "2"
+      - key: AI_MAX_RESPONSE_CHARS
+        value: "800"
       - key: DATABASE_URL
         fromDatabase:
           name: analyse-cc-db

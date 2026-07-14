@@ -93,6 +93,7 @@ class QARepository:
         return db.session.execute(text("""
             SELECT message.message_id, message.message_role, message.message_status,
                    message.content, message.confidence, message.error_code,
+                   message.provider_model, message.prompt_version,
                    message.created_at,
                    COALESCE(
                        jsonb_agg(
