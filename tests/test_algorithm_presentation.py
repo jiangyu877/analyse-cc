@@ -35,7 +35,9 @@ def test_algorithm_template_renders_charts_and_readable_tables():
 
 
 def test_completed_algorithm_redirects_to_its_visual_result():
-    source = (ROOT / "app" / "routes" / "algorithms.py").read_text(encoding="utf-8")
+    template = (ROOT / "app" / "templates" / "algorithms.html").read_text(encoding="utf-8")
 
-    assert '_anchor="task-result"' in source
-    assert "task_id=task_id" in source
+    assert "data-success-url" in template
+    assert "task_id='TASK_ID'" in template
+    assert "_anchor='task-result'" in template
+    assert "{task_id}" in template

@@ -601,6 +601,8 @@ Expected: all documentation and deployment contracts pass.
 & $git commit -m 'docs: add Release D operations and acceptance evidence'
 ```
 
+Release D execution record: Tasks 1-3 completed with 51 tests; Task 4 contract tests 10 passed. Backup/restore rehearsal remains open until PostgreSQL client tools and an isolated database are available.
+
 ## Final Review Checklist
 
 - [ ] Every approved design section maps to at least one task above.

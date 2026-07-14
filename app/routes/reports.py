@@ -3,11 +3,23 @@ import io
 import json
 from datetime import date
 
-from flask import Blueprint, Response, abort, render_template, request, stream_with_context
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    stream_with_context,
+    url_for,
+)
 from sqlalchemy import text
 
 from app.extensions import db
 from app.security.authorization import permission_required
+from app.services.jobs import JobError, JobService
 from app.utils import audit
 
 
@@ -158,7 +170,30 @@ def index():
         filters=filters,
         report=definition,
         rows=rows,
+        job_id=request.args.get("job_id", type=int),
     )
+
+
+@reports_bp.post("/refresh")
+@permission_required("analysis.run")
+def refresh():
+    raw_snapshot_date = request.form.get("snapshot_date", "").strip()
+    try:
+        snapshot_date = (
+            date.fromisoformat(raw_snapshot_date)
+            if raw_snapshot_date
+            else date.today()
+        )
+        job_id = JobService.enqueue(
+            "analytics_refresh",
+            {"snapshot_date": snapshot_date.isoformat()},
+            session["user_id"],
+        )
+        flash(f"后台刷新任务 {job_id} 已加入队列", "success")
+        return redirect(url_for("reports.index", job_id=job_id))
+    except (JobError, ValueError) as error:
+        flash(str(error), "danger")
+        return redirect(url_for("reports.index"))
 
 
 @reports_bp.get("/export.csv")

@@ -162,7 +162,7 @@ def test_full_seed_and_migration_sequence_is_idempotent(isolated_database):
 
     with isolated_database.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) FROM audit.schema_migration")
-        assert cursor.fetchone()[0] == 7
+        assert cursor.fetchone()[0] == 8
         cursor.execute("""
             SELECT COUNT(*)
             FROM biz.refund_item ri
