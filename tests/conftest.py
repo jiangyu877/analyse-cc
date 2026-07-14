@@ -49,7 +49,7 @@ def isolated_database():
         pytest.skip("set TEST_DATABASE_URL or ALLOW_LOCAL_DB_TESTS=true")
 
     url = make_url(raw_url)
-    database_name = f"consumer_release_a_{uuid4().hex}"
+    database_name = f"consumer_release_d_{uuid4().hex}"
     admin = psycopg2.connect(**_connection_kwargs(url))
     admin.autocommit = True
     database = None
@@ -88,6 +88,42 @@ def isolated_app(isolated_database):
         SQLALCHEMY_DATABASE_URI = url.set(database=database_name).render_as_string(
             hide_password=False
         )
+        SECRET_KEY = "integration-test-secret"
+
+    app = create_app(IntegrationConfig)
+    yield app
+
+    with app.app_context():
+        from app.extensions import db
+
+        db.session.remove()
+
+
+@pytest.fixture
+def initialized_database(isolated_database):
+    from scripts.init_db import ROOT as project_root, apply_migrations
+
+    with isolated_database.cursor() as cursor:
+        for filename in ("v2_schema.sql", "v2_seed.sql", "demo_commerce_v2.sql"):
+            cursor.execute((project_root / "database" / filename).read_text(encoding="utf-8"))
+    isolated_database.commit()
+    apply_migrations(isolated_database)
+    return isolated_database
+
+
+@pytest.fixture
+def initialized_app(initialized_database):
+    from app import create_app
+    from app.config import TestConfig
+
+    initialized_database.rollback()
+    with initialized_database.cursor() as cursor:
+        cursor.execute("SELECT current_database()")
+        database_name = cursor.fetchone()[0]
+    url = make_url(_test_database_url()).set(database=database_name)
+
+    class IntegrationConfig(TestConfig):
+        SQLALCHEMY_DATABASE_URI = url.render_as_string(hide_password=False)
         SECRET_KEY = "integration-test-secret"
 
     app = create_app(IntegrationConfig)

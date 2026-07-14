@@ -10,6 +10,7 @@
   .algorithm-run-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; margin-bottom:5px; }
   .algorithm-run-title i { color:var(--brand); font-size:19px; }
   .algorithm-run p { color:var(--muted); font-size:12px; line-height:1.55; min-height:38px; margin:0 0 12px; }
+  .job-monitor-body { min-height:64px; display:flex; align-items:center; gap:10px; }
   .algorithm-actions { display:flex; align-items:end; gap:8px; }
   .algorithm-actions .field { width:96px; flex:0 0 96px; }
   .algorithm-actions .form-label { margin-bottom:4px; }
@@ -76,6 +77,18 @@
   </a>
   {% endif %}
 </div>
+
+{% if job_id %}
+<section class="panel mb-3" data-job-monitor
+         data-status-url="{{ url_for('system.job_status', job_id=job_id) }}"
+         data-success-url="{{ url_for('algorithms.index', task_id='TASK_ID', _anchor='task-result') | replace('TASK_ID', '{task_id}') }}"
+         role="status" aria-live="polite" aria-busy="true">
+  <div class="panel-body job-monitor-body">
+    <i class="ti ti-loader-2" aria-hidden="true"></i>
+    <span data-job-message>后台任务 #{{ job_id }} 已排队</span>
+  </div>
+</section>
+{% endif %}
 
 {% if can('model.run') %}
 <section class="panel mb-3">
@@ -279,6 +292,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/job-status.js') }}"></script>
 {% if result %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {

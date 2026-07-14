@@ -36,3 +36,37 @@ def test_existing_repository_uses_dashboard_navigation_commit_message():
 
     assert 'set "COMMIT_MESSAGE=Add Magic Bento dashboard navigation"' in push_script
     assert 'set "COMMIT_MESSAGE=Make LineWaves background self-contained"' not in push_script
+
+
+def test_local_worker_is_packaged_without_a_public_port():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+
+    assert "COPY serve.py run.py worker.py ./" in dockerfile
+    assert "\n  worker:\n" in compose
+    worker = compose.partition("\n  worker:\n")[2].partition("\nvolumes:\n")[0]
+    assert "build: ." in worker
+    assert 'command: ["python", "worker.py"]' in worker
+    for variable in (
+        "FLASK_ENV",
+        "SECRET_KEY",
+        "DATABASE_URL",
+        "ADMIN_PASSWORD",
+        "OPERATOR_PASSWORD",
+        "ANALYST_PASSWORD",
+    ):
+        assert f"{variable}:" in worker
+    assert "ports:" not in worker
+    assert "web:\n        condition: service_healthy" in worker
+    assert "127.0.0.1:5000/readyz" in compose
+    assert "127.0.0.1:5000/healthz" not in compose
+    assert "type: worker" not in blueprint
+    assert "healthCheckPath: /healthz" in blueprint
+
+
+def test_ci_uses_postgres_18_and_short_timeout_without_pgvector():
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "image: postgres:18" in ci
+    assert "timeout-minutes: 15" in ci
+    assert "pgvector" not in ci.lower()

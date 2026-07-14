@@ -5,6 +5,7 @@
   .report-filter { display:grid; grid-template-columns:minmax(150px,1fr) repeat(2,minmax(150px,1fr)) auto; gap:12px; align-items:end; }
   .report-filter .form-label { margin-bottom:6px; }
   .report-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .job-monitor-body { min-height:64px; display:flex; align-items:center; gap:10px; }
   .report-meta { color:var(--muted); font-size:12px; font-weight:400; }
   .report-table td { white-space:nowrap; vertical-align:middle; }
   .report-table .identifier { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; }
@@ -18,12 +19,34 @@
     <h1>经营报表</h1>
     <p>{{ filters.start.isoformat() }} 至 {{ filters.end.isoformat() }} · {{ report.label }}</p>
   </div>
-  {% if can('analysis.export') %}
-  <a class="btn btn-outline-secondary" href="{{ url_for('reports.export_csv', dimension=filters.dimension, start=filters.start.isoformat(), end=filters.end.isoformat()) }}">
-    <i class="ti ti-download" aria-hidden="true"></i> 导出 CSV
-  </a>
-  {% endif %}
+  <div class="report-actions">
+    {% if can('analysis.run') %}
+    <form method="post" action="{{ url_for('reports.refresh') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">
+        <i class="ti ti-refresh" aria-hidden="true"></i> 刷新数据
+      </button>
+    </form>
+    {% endif %}
+    {% if can('analysis.export') %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('reports.export_csv', dimension=filters.dimension, start=filters.start.isoformat(), end=filters.end.isoformat()) }}">
+      <i class="ti ti-download" aria-hidden="true"></i> 导出 CSV
+    </a>
+    {% endif %}
+  </div>
 </div>
+
+{% if job_id %}
+<section class="panel mb-3" data-job-monitor
+         data-status-url="{{ url_for('system.job_status', job_id=job_id) }}"
+         data-success-url="{{ url_for('reports.index', dimension=filters.dimension, start=filters.start.isoformat(), end=filters.end.isoformat(), task_id='TASK_ID') | replace('TASK_ID', '{task_id}') }}"
+         role="status" aria-live="polite" aria-busy="true">
+  <div class="panel-body job-monitor-body">
+    <i class="ti ti-loader-2" aria-hidden="true"></i>
+    <span data-job-message>后台任务 #{{ job_id }} 已排队</span>
+  </div>
+</section>
+{% endif %}
 
 <section class="panel mb-3">
   <div class="panel-body">
@@ -84,4 +107,8 @@
     </table>
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/job-status.js') }}"></script>
 {% endblock %}

@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY database ./database
 COPY scripts ./scripts
-COPY serve.py run.py ./
+COPY serve.py run.py worker.py ./
 
 RUN useradd --create-home --uid 10001 webapp && chown -R webapp:webapp /app
 USER webapp

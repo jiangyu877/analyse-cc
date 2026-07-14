@@ -57,7 +57,7 @@ def test_registered_routes_use_resource_permissions():
         "customer.read", "customer.write", "product.read", "product.write",
         "order.read", "order.write", "payment.read", "payment.write",
         "refund.read", "refund.request", "model.read", "model.run",
-        "refund.approve", "import.read", "sql.execute", "analysis.read",
+        "refund.approve", "import.read", "import.run", "sql.execute", "analysis.read",
         "system.manage", "audit.read",
     ):
         assert f'permission_required("{permission}")' in combined

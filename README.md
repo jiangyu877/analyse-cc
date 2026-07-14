@@ -21,6 +21,8 @@ PostgreSQL（auth / biz / ods / dwd / ads / ml / audit）
 - 安全控制：RBAC、CSRF、登录限流、审计日志、安全响应头；SQL 实验页仅管理员可用并强制只读。
 - 服务运维：Waitress 生产入口、数据库连接池、`/healthz` 健康检查和 Docker Compose。
 
+Release D 文档： [部署](docs/deployment.md) · [用户指南](docs/user-guide.md) · [数据保留](docs/data-retention.md) · [验收清单](docs/acceptance-checklist.md)
+
 ## Windows 本机运行
 
 环境要求：Python 3.12、PostgreSQL 18。

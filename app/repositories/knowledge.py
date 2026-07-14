@@ -77,6 +77,20 @@ class KnowledgeRepository:
         """), {"document_id": document_id}).mappings().first()
 
     @staticmethod
+    def get_document(document_id):
+        return db.session.execute(text("""
+            SELECT * FROM kb.document WHERE document_id = :document_id
+        """), {"document_id": document_id}).mappings().first()
+
+    @staticmethod
+    def lock_publish_group(knowledge_base_id, title):
+        key = f"knowledge-publish:{knowledge_base_id}:{title}"
+        db.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": key},
+        ).scalar_one()
+
+    @staticmethod
     def replace_chunks(document_id, chunks):
         db.session.execute(
             text("DELETE FROM kb.document_chunk WHERE document_id = :document_id"),
@@ -125,6 +139,19 @@ class KnowledgeRepository:
         }).scalar_one_or_none()
 
     @staticmethod
+    def unpublish_other_versions(document_id):
+        db.session.execute(text("""
+            UPDATE kb.document sibling
+            SET is_published = FALSE, updated_at = now()
+            FROM kb.document current
+            WHERE current.document_id = :document_id
+              AND sibling.knowledge_base_id = current.knowledge_base_id
+              AND sibling.title = current.title
+              AND sibling.document_id <> current.document_id
+              AND sibling.is_published
+        """), {"document_id": document_id})
+
+    @staticmethod
     def disable(document_id):
         return db.session.execute(text("""
             UPDATE kb.document
@@ -141,7 +168,7 @@ class KnowledgeRepository:
             WITH candidates AS (
                 SELECT chunk.chunk_id, chunk.document_id, chunk.chunk_no,
                        chunk.content, document.title, document.version,
-                       base.name AS base_name,
+                       document.published_at, base.name AS base_name,
                        (
                            SELECT COUNT(*)::int
                            FROM unnest(chunk.search_terms) AS term
@@ -158,11 +185,10 @@ class KnowledgeRepository:
             SELECT *, LEAST(1.0, match_count::double precision / :term_count) AS score
             FROM candidates
             WHERE match_count > 0
-            ORDER BY match_count DESC, document_id, chunk_no
+            ORDER BY match_count DESC, published_at DESC, document_id DESC, chunk_no
             LIMIT :limit
         """), {
             "query_terms": list(query_terms),
             "term_count": max(1, len(query_terms)),
             "limit": min(max(int(limit), 1), 20),
         }).mappings().all()
-

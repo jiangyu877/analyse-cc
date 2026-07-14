@@ -3,9 +3,8 @@ from sqlalchemy import text
 
 from app.extensions import db
 from app.security.authorization import permission_required
-from app.services.algorithms import AlgorithmError, run_churn, run_kmeans, run_rfm
+from app.services.jobs import JobError, JobService
 from app.services.prediction import (
-    PredictionService,
     load_customer_amount_predictions,
     load_product_recommendations,
     load_product_sales_forecasts,
@@ -356,41 +355,52 @@ def index():
         result=_load_result(selected_task),
         task_labels=TASK_LABELS,
         gradio_public_url=current_app.config["GRADIO_PUBLIC_URL"],
+        job_id=request.args.get("job_id", type=int),
     )
 
 
 @algorithms_bp.post("/run/<task_type>")
 @permission_required("model.run")
 def run(task_type):
+    jobs = {
+        "rfm": ("model_rfm", {}),
+        "kmeans": (
+            "model_kmeans",
+            {"clusters": request.form.get("clusters", 4)},
+        ),
+        "churn": (
+            "model_churn",
+            {"observation_days": request.form.get("observation_days", 90)},
+        ),
+        "customer_amount": (
+            "model_customer_amount",
+            {
+                "horizon_days": request.form.get("horizon_days", 30),
+                "training_days": request.form.get("training_days", 180),
+            },
+        ),
+        "product_sales_forecast": (
+            "model_product_sales_forecast",
+            {
+                "horizon_days": request.form.get("horizon_days", 30),
+                "training_days": request.form.get("training_days", 90),
+            },
+        ),
+        "product_recommendation": (
+            "model_product_recommendation",
+            {
+                "top_k": request.form.get("top_k", 5),
+                "training_days": request.form.get("training_days", 180),
+            },
+        ),
+    }
     try:
-        if task_type == "rfm":
-            task_id = run_rfm(session["user_id"])
-        elif task_type == "kmeans":
-            task_id = run_kmeans(session["user_id"], request.form.get("clusters", 4))
-        elif task_type == "churn":
-            task_id = run_churn(session["user_id"], request.form.get("observation_days", 90))
-        elif task_type == "customer_amount":
-            task_id = PredictionService.run_customer_amount(
-                session["user_id"],
-                request.form.get("horizon_days", 30),
-                request.form.get("training_days", 180),
-            )
-        elif task_type == "product_sales_forecast":
-            task_id = PredictionService.run_product_sales_forecast(
-                session["user_id"],
-                request.form.get("horizon_days", 30),
-                request.form.get("training_days", 90),
-            )
-        elif task_type == "product_recommendation":
-            task_id = PredictionService.run_product_recommendation(
-                session["user_id"],
-                request.form.get("top_k", 5),
-                request.form.get("training_days", 180),
-            )
-        else:
-            raise AlgorithmError("未知算法类型")
-        flash(f"算法任务 {task_id} 已完成，结果已生成", "success")
-        return redirect(url_for("algorithms.index", task_id=task_id, _anchor="task-result"))
-    except (AlgorithmError, ValueError) as exc:
+        job_type, payload = jobs[task_type]
+        job_id = JobService.enqueue(job_type, payload, session["user_id"])
+        flash(f"后台任务 {job_id} 已加入队列", "success")
+        return redirect(url_for("algorithms.index", job_id=job_id))
+    except KeyError:
+        flash("未知算法类型", "danger")
+    except (JobError, ValueError) as exc:
         flash(str(exc), "danger")
     return redirect(url_for("algorithms.index"))

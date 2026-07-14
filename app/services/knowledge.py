@@ -1,4 +1,5 @@
 import hashlib
+import json
 import mimetypes
 import re
 import uuid
@@ -11,10 +12,18 @@ from flask import current_app
 
 from app.extensions import db
 from app.repositories.knowledge import KnowledgeRepository
+from app.services.tabular import TabularDataError, read_tabular, remap_columns
 from app.utils import audit
 
 
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
+FAQ_DATASET_EXTENSIONS = {".csv", ".xlsx"}
+FAQ_COLUMN_ALIASES = {
+    "question": ("问题", "提问", "问法", "faq_question"),
+    "answer": ("答案", "回答", "回复", "faq_answer"),
+    "category": ("分类", "类别", "category_name"),
+    "keywords": ("关键词", "关键字", "tags"),
+}
 WORD_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
@@ -96,6 +105,40 @@ def parse_document(extension, data):
     raise KnowledgeError("文本文件必须使用 UTF-8 或 GB18030 编码")
 
 
+def _persist_document(knowledge_base_id, title, filename, data, operator_id, chunks):
+    extension = Path(filename).suffix.lower()
+    storage_dir = Path(current_app.config["KNOWLEDGE_UPLOAD_DIR"])
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    storage_name = f"{uuid.uuid4().hex}{extension}"
+    storage_path = storage_dir / storage_name
+    storage_path.write_bytes(data)
+    try:
+        with db.session.begin():
+            version = KnowledgeRepository.next_version(int(knowledge_base_id), title)
+            document_id = KnowledgeRepository.create_document({
+                "knowledge_base_id": int(knowledge_base_id),
+                "title": title,
+                "version": version,
+                "original_name": filename[:255],
+                "storage_name": storage_name,
+                "extension": extension,
+                "mime_type": mimetypes.guess_type(filename)[0] or "application/octet-stream",
+                "file_size": len(data),
+                "content_hash": hashlib.sha256(data).hexdigest(),
+                "created_by": operator_id,
+            })
+            KnowledgeRepository.replace_chunks(document_id, chunks)
+            audit(
+                "document.ingest", "document", document_id,
+                json.dumps({"chunk_count": len(chunks)}, ensure_ascii=False),
+            )
+        return document_id
+    except Exception:
+        storage_path.unlink(missing_ok=True)
+        db.session.rollback()
+        raise
+
+
 class KnowledgeService:
     @staticmethod
     def create_base(base_code, name, description, operator_id):
@@ -152,45 +195,82 @@ class KnowledgeService:
         if not chunks:
             raise KnowledgeError("文档没有可建立索引的关键词")
 
-        storage_dir = Path(current_app.config["KNOWLEDGE_UPLOAD_DIR"])
-        storage_dir.mkdir(parents=True, exist_ok=True)
-        storage_name = f"{uuid.uuid4().hex}{extension}"
-        storage_path = storage_dir / storage_name
-        storage_path.write_bytes(data)
+        return _persist_document(
+            knowledge_base_id, title, filename, data, operator_id, chunks
+        )
+
+    @staticmethod
+    def ingest_faq_dataset(knowledge_base_id, title, filename, data, operator_id):
+        title = (title or "").strip()[:200]
+        filename = (filename or "").strip()
+        if not filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
+            raise KnowledgeError("文件名不安全")
+        extension = Path(filename).suffix.lower()
+        if extension not in FAQ_DATASET_EXTENSIONS:
+            raise KnowledgeError("问答数据集仅支持 CSV 和 XLSX 文件")
+        if not title:
+            title = "标准问答"
+        max_bytes = int(current_app.config["MAX_UPLOAD_MB"]) * 1024 * 1024
+        if not data:
+            raise KnowledgeError("不能上传空文件")
+        if len(data) > max_bytes:
+            raise KnowledgeError(f"文件不能超过 {current_app.config['MAX_UPLOAD_MB']} MB")
         try:
-            with db.session.begin():
-                version = KnowledgeRepository.next_version(int(knowledge_base_id), title)
-                document_id = KnowledgeRepository.create_document({
-                    "knowledge_base_id": int(knowledge_base_id),
-                    "title": title,
-                    "version": version,
-                    "original_name": filename[:255],
-                    "storage_name": storage_name,
-                    "extension": extension,
-                    "mime_type": mimetypes.guess_type(filename)[0] or "application/octet-stream",
-                    "file_size": len(data),
-                    "content_hash": hashlib.sha256(data).hexdigest(),
-                    "created_by": operator_id,
-                })
-                KnowledgeRepository.replace_chunks(document_id, chunks)
-                audit(
-                    "document.ingest", "document", document_id,
-                    f'{{"chunk_count": {len(chunks)}}}',
-                )
-            return document_id
-        except Exception:
-            storage_path.unlink(missing_ok=True)
-            db.session.rollback()
-            raise
+            dataset = read_tabular(filename, data, max_rows=2000)
+            rows = remap_columns(dataset, FAQ_COLUMN_ALIASES, ("question", "answer"))
+        except TabularDataError as exc:
+            raise KnowledgeError(str(exc)) from exc
+
+        chunks = []
+        seen_questions = set()
+        for index, row in enumerate(rows, start=2):
+            question = normalize_text(row.get("question") or "")
+            answer = normalize_text(row.get("answer") or "")
+            category = normalize_text(row.get("category") or "")[:100]
+            keywords = normalize_text(row.get("keywords") or "")[:500]
+            if len(question) < 2:
+                raise KnowledgeError(f"第 {index} 行：问题至少需要 2 个字符")
+            if len(question) > 500:
+                raise KnowledgeError(f"第 {index} 行：问题不能超过 500 个字符")
+            if not answer:
+                raise KnowledgeError(f"第 {index} 行：答案不能为空")
+            if len(answer) > 4000:
+                raise KnowledgeError(f"第 {index} 行：答案不能超过 4000 个字符")
+            question_key = re.sub(r"\s+", "", question).lower()
+            if question_key in seen_questions:
+                raise KnowledgeError(f"第 {index} 行：问题重复")
+            seen_questions.add(question_key)
+            content = json.dumps({
+                "_type": "faq-v1", "question": question, "answer": answer,
+                "category": category, "keywords": keywords,
+            }, ensure_ascii=False, separators=(",", ":"))
+            terms = search_terms(" ".join((question, category, keywords)))
+            if not terms:
+                raise KnowledgeError(f"第 {index} 行：问题缺少可检索关键词")
+            chunks.append({
+                "chunk_no": index - 1, "content": content,
+                "char_count": len(content),
+                "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                "search_terms": terms,
+            })
+        document_id = _persist_document(
+            knowledge_base_id, title, filename, data, operator_id, chunks
+        )
+        return document_id, len(chunks)
 
     @staticmethod
     def publish(document_id, operator_id):
         with db.session.begin():
-            document = KnowledgeRepository.lock_document(int(document_id))
-            if not document:
+            candidate = KnowledgeRepository.get_document(int(document_id))
+            if not candidate:
                 raise KnowledgeError("文档不存在")
+            KnowledgeRepository.lock_publish_group(
+                candidate["knowledge_base_id"], candidate["title"]
+            )
+            document = KnowledgeRepository.lock_document(int(document_id))
             if document["status"] != "ready" or document["chunk_count"] <= 0:
                 raise KnowledgeError("文档尚未完成解析")
+            KnowledgeRepository.unpublish_other_versions(document["document_id"])
             if KnowledgeRepository.publish(document["document_id"], operator_id) is None:
                 raise KnowledgeError("文档无法发布")
             audit("document.publish", "document", document["document_id"])
