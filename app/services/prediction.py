@@ -10,6 +10,7 @@ from app.extensions import db
 
 RANDOM_SEED = 42
 CODE_VERSION = os.environ.get("MODEL_CODE_VERSION", "release-c-v1")
+POPULARITY_FALLBACK_WEIGHT = 0.05
 
 MODEL_SPECS = {
     "rfm": {
@@ -43,8 +44,12 @@ MODEL_SPECS = {
         "evaluation_metric": "mae",
     },
     "product_recommendation": {
-        "algorithm": "cosine similarity",
-        "feature_list": ["customer_product_quantity_matrix"],
+        "algorithm": "cosine similarity with popularity fallback",
+        "model_version": "baseline-v2",
+        "feature_list": [
+            "customer_product_quantity_matrix",
+            "global_product_popularity",
+        ],
         "training_window": "bounded_interaction_history",
         "evaluation_metric": "mean_similarity",
     },
@@ -135,17 +140,31 @@ def cosine_recommendation_baseline(interactions, top_k):
 
     similarity = cosine_similarity(interactions.T)
     np.fill_diagonal(similarity, 0.0)
+    popularity = interactions.sum(axis=0)
+    popularity_max = float(popularity.max())
+    popularity_scores = (
+        popularity / popularity_max * POPULARITY_FALLBACK_WEIGHT
+        if popularity_max > 0
+        else np.zeros(interactions.shape[1], dtype=float)
+    )
     recommendations = []
     for customer_index, purchases in enumerate(interactions):
         if purchases.sum() <= 0:
             continue
-        scores = np.clip((purchases @ similarity) / purchases.sum(), 0.0, 1.0)
+        cosine_scores = np.clip(
+            (purchases @ similarity) / purchases.sum(), 0.0, 1.0
+        )
+        scores = np.where(cosine_scores > 0, cosine_scores, popularity_scores)
         candidates = [
             product_index
             for product_index in range(interactions.shape[1])
             if purchases[product_index] <= 0 and scores[product_index] > 0
         ]
-        candidates.sort(key=lambda product_index: (-scores[product_index], product_index))
+        candidates.sort(key=lambda product_index: (
+            0 if cosine_scores[product_index] > 0 else 1,
+            -scores[product_index],
+            product_index,
+        ))
         for rank, product_index in enumerate(candidates[:top_k], start=1):
             recommendations.append(
                 (customer_index, product_index, rank, float(scores[product_index]))
@@ -175,13 +194,14 @@ def _ensure_model(task_type):
         INSERT INTO ml.model_registry
             (model_key, model_version, algorithm, feature_list, metadata)
         VALUES
-            (:model_key, 'baseline-v1', :algorithm,
+            (:model_key, :model_version, :algorithm,
              CAST(:feature_list AS jsonb), CAST(:metadata AS jsonb))
         ON CONFLICT (model_key, model_version)
         DO UPDATE SET model_key = EXCLUDED.model_key
         RETURNING model_id
     """), {
         "model_key": task_type,
+        "model_version": spec.get("model_version", "baseline-v1"),
         "algorithm": spec["algorithm"],
         "feature_list": _json(spec["feature_list"]),
         "metadata": _json({

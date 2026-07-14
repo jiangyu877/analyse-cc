@@ -58,6 +58,27 @@ def test_cosine_recommendations_are_ranked_and_exclude_purchases():
     assert recommendations == cosine_recommendation_baseline(interactions, top_k=2)
 
 
+def test_cosine_recommendations_fall_back_to_popularity_for_sparse_interactions():
+    from app.services.prediction import cosine_recommendation_baseline
+
+    interactions = np.array([
+        [3, 0, 0],
+        [0, 2, 0],
+        [0, 0, 1],
+    ], dtype=float)
+
+    recommendations = cosine_recommendation_baseline(interactions, top_k=2)
+
+    assert recommendations
+    assert recommendations == cosine_recommendation_baseline(interactions, top_k=2)
+    for customer_index, product_index, rank, score in recommendations:
+        assert interactions[customer_index, product_index] == 0
+        assert rank in (1, 2)
+        assert 0 < score <= 1
+    customer_zero = [row for row in recommendations if row[0] == 0]
+    assert customer_zero[0][1] == 1
+
+
 @pytest.mark.parametrize(
     ("function_name", "args"),
     [
@@ -91,4 +112,3 @@ def test_flask_and_gradio_expose_all_six_task_families_without_raw_sql():
         assert task_type in gradio_source
     assert "db.session.execute" not in gradio_source
     assert "psycopg2" not in gradio_source
-

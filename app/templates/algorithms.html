@@ -124,7 +124,7 @@
     <form class="algorithm-run" method="post" action="{{ url_for('algorithms.run', task_type='product_recommendation') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="algorithm-run-title"><i class="ti ti-sparkles"></i>商品智能推荐</div>
-      <p>通过余弦相似度为客户推荐尚未购买的关联商品。</p>
+      <p>优先使用余弦相似度，交互稀疏时按商品热度补齐推荐。</p>
       <div class="algorithm-actions">
         <div class="field"><label class="form-label" for="top-k">每人条数</label><input id="top-k" class="form-control" type="number" name="top_k" value="5" min="1" max="20"></div>
         <input type="hidden" name="training_days" value="180">
