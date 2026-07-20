@@ -14,24 +14,24 @@
 <div class="import-layout">
   {% if can('import.run') %}<section class="panel">
     <div class="panel-head"><span><i class="ti ti-file-import me-1"></i>导入业务数据集</span><span class="badge bg-blue-lt">CSV / XLSX</span></div>
-    <div class="panel-body"><form method="post" enctype="multipart/form-data" action="{{ url_for('imports.upload_dataset') }}" id="dataset-form">
+    <div class="panel-body"><form method="post" enctype="multipart/form-data" action="{{ url_for('imports.preview_dataset') }}" id="dataset-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="upload-zone mb-3"><label class="form-label" for="dataset-file">数据文件</label><input class="form-control" id="dataset-file" type="file" name="dataset" accept=".csv,.xlsx" required><div id="selected-file" class="text-muted small mt-2">单次最多 10,000 行，整批校验通过后写入</div></div>
+      <div class="upload-zone mb-3"><label class="form-label" for="dataset-file">数据文件</label><input class="form-control" id="dataset-file" type="file" name="dataset" accept=".csv,.xlsx" required><div id="selected-file" class="text-muted small mt-2">单次最多 10,000 行。先预检字段、格式和金额，确认后才写入业务数据。</div></div>
       <div class="field-list mb-3"><code>客户编号</code><code>客户姓名</code><code>订单编号</code><code>下单时间</code><code>商品SKU</code><code>商品名称</code><code>数量</code><code>单价</code></div>
-      <div class="import-note mb-3"><i class="ti ti-info-circle"></i><span>同一订单可包含多行商品；已有订单自动跳过。历史消费不会扣减当前库存。</span></div>
-      <button class="btn btn-primary w-100" type="submit"><i class="ti ti-database-import"></i> 校验并导入</button>
+      <div class="import-note mb-3"><i class="ti ti-info-circle"></i><span>同一订单可包含多行商品；已有订单自动跳过。预检错误可下载为 CSV，历史消费不会扣减当前库存。</span></div>
+      <button class="btn btn-primary w-100" type="submit"><i class="ti ti-search"></i> 开始预检</button>
     </form></div>
   </section>{% endif %}
   <section class="panel">
     <div class="panel-head">最近导入批次 <span class="text-muted small">最近 50 条</span></div>
     <div class="table-responsive"><table class="table mb-0"><thead><tr><th>批次号</th><th>数据来源</th><th>客户</th><th>订单</th><th>状态</th><th>完成时间</th></tr></thead><tbody>
-      {% for b in batches %}<tr><td><code>{{ b.batch_no }}</code>{% if b.error_message %}<div class="batch-error">{{ b.error_message }}</div>{% endif %}</td><td>{{ b.source_name }}</td><td>{{ b.customer_count }}</td><td>{{ b.transaction_count }}</td><td><span class="badge {{ 'bg-success-lt' if b.status == 'success' else 'bg-danger-lt' if b.status == 'failed' else 'bg-warning-lt' }}">{{ {'success':'成功','failed':'失败','running':'处理中'}.get(b.status,b.status) }}</span></td><td>{{ b.finished_at.strftime('%Y-%m-%d %H:%M') if b.finished_at else '-' }}</td></tr>
+      {% for b in batches %}<tr><td><a href="{{ url_for('imports.batch_detail', batch_no=b.batch_no) }}"><code>{{ b.batch_no }}</code></a>{% if b.error_message %}<div class="batch-error">{{ b.error_message }}</div>{% endif %}</td><td>{{ b.source_name }}</td><td>{{ b.customer_count }}</td><td>{{ b.transaction_count }}</td><td><span class="badge {{ 'bg-success-lt' if b.status == 'success' else 'bg-danger-lt' if b.status == 'failed' else 'bg-warning-lt' }}">{{ {'success':'成功','failed':'失败','running':'预检中'}.get(b.status,b.status) }}</span></td><td>{{ b.finished_at.strftime('%Y-%m-%d %H:%M') if b.finished_at else '-' }}</td></tr>
       {% else %}<tr><td colspan="6" class="empty">暂无导入批次</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 </div>
 {% endblock %}
 {% block scripts %}<script>
-document.getElementById('dataset-file')?.addEventListener('change',function(){const label=document.getElementById('selected-file');label.textContent=this.files[0]?`${this.files[0].name} · ${(this.files[0].size/1024).toFixed(1)} KB`:'单次最多 10,000 行，整批校验通过后写入'});
-document.getElementById('dataset-form')?.addEventListener('submit',function(){const button=this.querySelector('button[type="submit"]');button.disabled=true;button.innerHTML='<i class="ti ti-loader-2"></i> 正在校验并导入';});
+document.getElementById('dataset-file')?.addEventListener('change',function(){const label=document.getElementById('selected-file');label.textContent=this.files[0]?`${this.files[0].name} · ${(this.files[0].size/1024).toFixed(1)} KB`:'单次最多 10,000 行。先预检字段、格式和金额，确认后才写入业务数据。'});
+document.getElementById('dataset-form')?.addEventListener('submit',function(){const button=this.querySelector('button[type="submit"]');button.disabled=true;button.innerHTML='<i class="ti ti-loader-2"></i> 正在预检';});
 </script>{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}导入预检 {{ batch.batch_no }}{% endblock %}
+{% block extra_head %}<style>
+.import-summary{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:12px}.import-meta{font-size:12px;color:var(--muted)}.payload{max-width:520px;white-space:pre-wrap;word-break:break-word;font-size:11px}.issue-message{max-width:360px;white-space:normal;color:#b42318}@media(max-width:760px){.import-summary{grid-template-columns:repeat(2,minmax(120px,1fr))}}
+</style>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>导入预检</h1><p><code>{{ batch.batch_no }}</code> · {{ batch.source_name }}</p></div><a class="btn btn-outline-secondary" href="{{ url_for('imports.index') }}"><i class="ti ti-arrow-left"></i> 返回导入</a></div>
+
+<div class="import-summary mb-3">
+  <div class="stat"><div class="stat-label">输入行</div><div class="stat-value">{{ batch.input_row_count }}</div></div>
+  <div class="stat"><div class="stat-label">有效行</div><div class="stat-value text-success">{{ batch.valid_row_count }}</div></div>
+  <div class="stat"><div class="stat-label">错误行</div><div class="stat-value {{ 'text-danger' if batch.invalid_row_count else '' }}">{{ batch.invalid_row_count }}</div></div>
+  <div class="stat"><div class="stat-label">预检金额</div><div class="stat-value money">¥{{ '%.2f'|format(batch.gross_amount|float) }}</div></div>
+</div>
+
+<section class="panel mb-3"><div class="panel-head">预检状态</div><div class="panel-body"><div class="d-flex flex-wrap align-items-center gap-2"><span class="badge {{ 'bg-success-lt' if batch.status == 'success' else 'bg-danger-lt' if batch.status == 'failed' else 'bg-warning-lt' }}">{{ {'success':'已导入','failed':'失败','running':'待确认'}.get(batch.status,batch.status) }}</span><span class="import-meta">文件指纹：{{ batch.file_sha256 or '-' }}</span>{% if batch.confirmed_at %}<span class="import-meta">确认时间：{{ batch.confirmed_at.strftime('%Y-%m-%d %H:%M') }}</span>{% endif %}</div>{% if batch.error_message %}<p class="text-danger mt-3 mb-0">{{ batch.error_message }}</p>{% endif %}</div></section>
+
+<section class="panel mb-3"><div class="panel-head">字段映射</div><div class="panel-body"><div class="field-list">{% for source, target in batch.mapping_json.items() %}<code>{{ source }} → {{ target }}</code>{% endfor %}</div></div></section>
+
+{% if batch.issues %}<section class="panel mb-3"><div class="panel-head d-flex justify-content-between align-items-center"><span>预检问题 <span class="text-danger">{{ batch.issues|length }}</span></span><a class="btn btn-sm btn-outline-danger" href="{{ url_for('imports.download_error_report', batch_no=batch.batch_no) }}"><i class="ti ti-download"></i> 下载错误报告</a></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>行号</th><th>字段</th><th>原值</th><th>说明</th></tr></thead><tbody>{% for issue in batch.issues %}<tr><td>{{ issue.row_number }}</td><td>{{ issue.field_name or '-' }}</td><td>{{ issue.raw_value or '-' }}</td><td class="issue-message">{{ issue.message }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+
+{% if can('import.run') and batch.status == 'running' and batch.invalid_row_count == 0 and batch.created_by == session.user_id %}<form method="post" action="{{ url_for('imports.confirm_dataset', batch_no=batch.batch_no) }}" class="mb-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit"><i class="ti ti-database-import"></i> 确认导入</button><span class="import-meta ms-2">确认后将创建客户、商品、订单、支付和消费流水。</span></form>{% endif %}
+
+<section class="panel"><div class="panel-head">预览行 <span class="text-muted small">最多 20 行</span></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>行号</th><th>状态</th><th>映射后数据</th></tr></thead><tbody>{% for row in batch.stage_rows %}<tr><td>{{ row.row_number }}</td><td><span class="badge {{ 'bg-success-lt' if row.is_valid else 'bg-danger-lt' }}">{{ '有效' if row.is_valid else '有错误' }}</span></td><td class="payload">{{ row.payload|tojson(indent=2) }}</td></tr>{% else %}<tr><td colspan="3" class="empty">没有暂存行</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

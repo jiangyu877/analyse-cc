@@ -60,3 +60,18 @@ services:
         sync: false
       - key: ANALYST_PASSWORD
         sync: false
+  - type: worker
+    name: analyse-cc-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analyse-cc-db
+          property: connectionString

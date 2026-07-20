@@ -73,10 +73,11 @@ def test_migrations_are_idempotent_and_seed_documented_roles(isolated_database):
         "004_knowledge_and_embeddings.sql",
         "005_qa_and_tickets.sql",
         "006_ads_results.sql",
-        "007_model_registry_and_results.sql",
-        "008_background_jobs.sql",
-        "009_knowledge_publish_guard.sql",
-    ]
+            "007_model_registry_and_results.sql",
+            "008_background_jobs.sql",
+            "009_knowledge_publish_guard.sql",
+            "010_import_preflight_and_data_maintenance.sql",
+        ]
     for version, checksum in migrations:
         assert checksum == hashlib.sha256((migrations_dir / version).read_bytes()).hexdigest()
     assert roles == ROLE_CODES
@@ -90,6 +91,33 @@ def test_migrations_are_idempotent_and_seed_documented_roles(isolated_database):
     }
     for role_code, expected in EXPECTED_ROLE_PERMISSIONS.items():
         assert expected <= actual_permissions[role_code]
+
+    with isolated_database.cursor() as cursor:
+        cursor.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'ods' AND table_name = 'import_batch'
+        """)
+        import_batch_columns = {row[0] for row in cursor.fetchall()}
+        cursor.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'ods'
+              AND table_name IN ('import_stage_row', 'import_row_issue')
+        """)
+        import_tables = {row[0] for row in cursor.fetchall()}
+
+    assert {
+        "file_sha256",
+        "file_size",
+        "input_row_count",
+        "valid_row_count",
+        "invalid_row_count",
+        "mapping_json",
+        "confirmed_at",
+        "created_by",
+    } <= import_batch_columns
+    assert import_tables == {"import_stage_row", "import_row_issue"}
 
 
 def test_migration_backfills_every_existing_legacy_role_account(isolated_database):

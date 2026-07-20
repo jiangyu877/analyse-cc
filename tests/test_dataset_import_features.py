@@ -16,6 +16,7 @@ from app.services.retail_import import (
     COLUMN_ALIASES,
     REQUIRED_FIELDS,
     RetailImportError,
+    RetailImportService,
     _normalize_rows,
 )
 from app.services.tabular import TabularDataError, read_tabular, remap_columns
@@ -67,6 +68,51 @@ def test_retail_rows_group_order_lines_and_reject_conflicting_customer():
             {**rows[0], "quantity": "600000"},
             {**rows[1], "quantity": "600000"},
         ))
+
+
+def test_import_analysis_collects_multiple_independent_row_issues():
+    payload = (
+        "客户编号,客户姓名,订单编号,下单时间,商品SKU,商品名称,数量,单价\n"
+        "C1,张三,SO1,not-a-date,SKU1,咖啡,0,not-a-price\n"
+    ).encode("utf-8-sig")
+
+    result = RetailImportService.analyze_dataset("bad.csv", payload)
+
+    assert result["input_row_count"] == 1
+    assert result["valid_row_count"] == 0
+    assert result["invalid_row_count"] == 1
+    assert {(issue["field_name"], issue["issue_code"]) for issue in result["issues"]} == {
+        ("order_time", "invalid_datetime"),
+        ("quantity", "invalid_quantity"),
+        ("unit_price", "invalid_money"),
+    }
+
+
+def test_import_analysis_accepts_explicit_field_mapping():
+    payload = (
+        "编号,姓名,订单,时间,SKU,商品,数量,价格\n"
+        "C1,张三,SO1,2026-07-20 10:00:00,SKU1,咖啡,1,9.90\n"
+    ).encode("utf-8-sig")
+
+    result = RetailImportService.analyze_dataset(
+        "mapped.csv",
+        payload,
+        {
+            "编号": "customer_no",
+            "姓名": "customer_name",
+            "订单": "order_no",
+            "时间": "order_time",
+            "SKU": "product_sku",
+            "商品": "product_name",
+            "数量": "quantity",
+            "价格": "unit_price",
+        },
+    )
+
+    assert result["valid_row_count"] == 1
+    assert result["invalid_row_count"] == 0
+    assert result["issues"] == []
+    assert result["mapping"]["编号"] == "customer_no"
 
 
 def test_xlsx_reader_and_invalid_spreadsheet_detection():
@@ -132,12 +178,15 @@ def test_routes_and_templates_expose_dataset_workflows():
 
     endpoints = {rule.endpoint for rule in create_app().url_map.iter_rules()}
     assert {
-        "imports.download_template", "imports.upload_dataset",
+        "imports.download_template", "imports.upload_dataset", "imports.preview_dataset",
+        "imports.confirm_dataset", "imports.download_error_report", "imports.batch_detail",
         "knowledge.download_dataset_template", "knowledge.upload_dataset",
     } <= endpoints
     imports = (ROOT / "app/templates/imports.html").read_text(encoding="utf-8")
+    import_detail = (ROOT / "app/templates/import_batch_detail.html").read_text(encoding="utf-8")
     knowledge = (ROOT / "app/templates/knowledge/index.html").read_text(encoding="utf-8")
     qa = (ROOT / "app/templates/qa/chat.html").read_text(encoding="utf-8")
-    assert "校验并导入" in imports and ".csv,.xlsx" in imports
+    assert "开始预检" in imports and ".csv,.xlsx" in imports
+    assert "确认导入" in import_detail and "下载错误报告" in import_detail
     assert "导入问答数据集" in knowledge and "publish_now" in knowledge
     assert "data-question" in qa and "qa-question" in qa

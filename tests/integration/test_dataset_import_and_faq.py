@@ -102,6 +102,95 @@ def test_retail_dataset_builds_complete_paid_order_chain(
         db.session.commit()
 
 
+def test_retail_import_preflight_stages_rows_without_writing_business_records(
+    initialized_app, initialized_database
+):
+    from app.extensions import db
+    from app.services.retail_import import RetailImportService
+
+    payload = (
+        "客户编号,客户姓名,手机号,订单编号,下单时间,商品SKU,商品名称,商品分类,数量,单价,支付方式\n"
+        "PF-C001,预检客户,13800000002,PF-SO001,2026-07-20 10:30:00,PF-SKU1,咖啡,饮品,2,19.90,微信\n"
+        "PF-C001,预检客户,13800000002,PF-SO001,2026-07-20 10:30:00,PF-SKU2,茶,饮品,1,9.90,微信\n"
+    ).encode("utf-8-sig")
+
+    with initialized_app.test_request_context("/imports/preview"):
+        account_id = db.session.execute(text(
+            "SELECT account_id FROM auth.account WHERE username = 'admin'"
+        )).scalar_one()
+        db.session.commit()
+        session["user_id"] = account_id
+
+        result = RetailImportService.preflight_dataset("orders.csv", payload, account_id)
+
+        assert result["input_row_count"] == 2
+        assert result["valid_row_count"] == 2
+        assert result["invalid_row_count"] == 0
+        assert str(result["gross_amount"]) == "49.70"
+        assert db.session.execute(text("""
+            SELECT COUNT(*) FROM biz.sales_order WHERE order_no = 'PF-SO001'
+        """)).scalar_one() == 0
+        assert db.session.execute(text("""
+            SELECT COUNT(*) FROM ods.import_stage_row row
+            JOIN ods.import_batch batch ON batch.batch_id = row.batch_id
+            WHERE batch.batch_no = :batch_no
+        """), {"batch_no": result["batch_no"]}).scalar_one() == 2
+        batch = db.session.execute(text("""
+            SELECT file_sha256, input_row_count, valid_row_count, invalid_row_count,
+                   confirmed_at
+            FROM ods.import_batch WHERE batch_no = :batch_no
+        """), {"batch_no": result["batch_no"]}).mappings().one()
+        assert len(batch["file_sha256"].strip()) == 64
+        assert batch["input_row_count"] == 2
+        assert batch["valid_row_count"] == 2
+        assert batch["invalid_row_count"] == 0
+        assert batch["confirmed_at"] is None
+        db.session.commit()
+
+
+def test_confirmed_preflight_creates_paid_order_chain_and_reconciles_amount(
+    initialized_app, initialized_database
+):
+    from app.extensions import db
+    from app.services.retail_import import RetailImportService
+
+    payload = (
+        "客户编号,客户姓名,订单编号,下单时间,商品SKU,商品名称,数量,单价\n"
+        "CF-C001,确认客户,CF-SO001,2026-07-20 10:30:00,CF-SKU1,咖啡,2,19.90\n"
+        "CF-C001,确认客户,CF-SO001,2026-07-20 10:30:00,CF-SKU2,茶,1,9.90\n"
+    ).encode("utf-8-sig")
+
+    with initialized_app.test_request_context("/imports/confirm"):
+        account_id = db.session.execute(text(
+            "SELECT account_id FROM auth.account WHERE username = 'admin'"
+        )).scalar_one()
+        db.session.commit()
+        session["user_id"] = account_id
+
+        preview = RetailImportService.preflight_dataset("confirm.csv", payload, account_id)
+        result = RetailImportService.confirm_preflight(preview["batch_no"], account_id)
+
+        assert result["order_count"] == 1
+        assert str(result["gross_amount"]) == "49.70"
+        batch = db.session.execute(text("""
+            SELECT status, confirmed_at, gross_amount, transaction_count
+            FROM ods.import_batch WHERE batch_no = :batch_no
+        """), {"batch_no": preview["batch_no"]}).mappings().one()
+        assert batch["status"] == "success"
+        assert batch["confirmed_at"] is not None
+        assert float(batch["gross_amount"]) == 49.70
+        assert batch["transaction_count"] == 1
+        chain_count = db.session.execute(text("""
+            SELECT COUNT(*)
+            FROM biz.sales_order order_row
+            JOIN biz.payment payment ON payment.order_id = order_row.order_id
+            JOIN dwd.consumption_flow flow ON flow.payment_id = payment.payment_id
+            WHERE order_row.order_no = 'CF-SO001'
+        """)).scalar_one()
+        assert chain_count == 1
+        db.session.commit()
+
+
 def test_faq_dataset_answers_directly_and_new_version_replaces_old(
     initialized_app, initialized_database, tmp_path
 ):

@@ -80,3 +80,60 @@ def upload_dataset():
         current_app.logger.exception("retail dataset import failed")
         flash("数据导入失败，请检查数据是否与现有业务记录冲突", "danger")
     return redirect(url_for("imports.index"))
+
+
+@imports_bp.post("/preview")
+@permission_required("import.run")
+def preview_dataset():
+    upload = request.files.get("dataset")
+    if not upload or not upload.filename:
+        flash("请选择 CSV 或 XLSX 数据集", "danger")
+        return redirect(url_for("imports.index"))
+    try:
+        result = RetailImportService.preflight_dataset(
+            upload.filename, upload.read(), session["user_id"]
+        )
+        return redirect(url_for("imports.batch_detail", batch_no=result["batch_no"]))
+    except (RetailImportError, TabularDataError) as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("retail import preflight failed")
+        flash("数据预检失败，请检查文件后重试", "danger")
+    return redirect(url_for("imports.index"))
+
+
+@imports_bp.post("/<batch_no>/confirm")
+@permission_required("import.run")
+def confirm_dataset(batch_no):
+    try:
+        RetailImportService.confirm_preflight(batch_no, session["user_id"])
+        flash(f"批次 {batch_no} 导入完成", "success")
+    except RetailImportError as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("imports.batch_detail", batch_no=batch_no))
+
+
+@imports_bp.get("/<batch_no>/errors.csv")
+@permission_required("import.read")
+def download_error_report(batch_no):
+    try:
+        report = RetailImportService.error_report(batch_no)
+    except RetailImportError:
+        return render_template("error.html", code=404, message="导入预检批次不存在"), 404
+    return Response(
+        report,
+        content_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={batch_no}-errors.csv"},
+    )
+
+
+@imports_bp.get("/<batch_no>")
+@permission_required("import.read")
+def batch_detail(batch_no):
+    batch = RetailImportService.batch_detail(batch_no)
+    if batch is None:
+        return render_template("error.html", code=404, message="导入预检批次不存在"), 404
+    return render_template("import_batch_detail.html", batch=batch)

@@ -66,7 +66,10 @@ def test_local_worker_is_packaged_without_a_public_port():
     assert "web:\n        condition: service_healthy" in worker
     assert "127.0.0.1:5000/readyz" in compose
     assert "127.0.0.1:5000/healthz" not in compose
-    assert "type: worker" not in blueprint
+    assert "type: worker" in blueprint
+    worker = blueprint.partition("- type: worker")[2]
+    assert "startCommand: python worker.py" in worker
+    assert "ports:" not in worker
     assert "healthCheckPath: /healthz" in blueprint
 
 

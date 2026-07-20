@@ -35,3 +35,24 @@ def test_bulk_import_builds_complete_consumption_chain():
     assert "insert into biz.order_item" in script
     assert "insert into biz.payment" in script
     assert "insert into dwd.consumption_flow" in script
+
+
+def test_import_preflight_migration_defines_staging_and_issue_storage():
+    migration = (
+        ROOT / "database" / "migrations" / "010_import_preflight_and_data_maintenance.sql"
+    )
+
+    assert migration.exists()
+
+    sql = migration.read_text(encoding="utf-8").lower()
+    for fragment in (
+        "add column if not exists file_sha256",
+        "add column if not exists input_row_count",
+        "add column if not exists valid_row_count",
+        "add column if not exists invalid_row_count",
+        "add column if not exists mapping_json",
+        "create table if not exists ods.import_stage_row",
+        "create table if not exists ods.import_row_issue",
+        "on delete cascade",
+    ):
+        assert fragment in sql

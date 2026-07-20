@@ -41,3 +41,16 @@ def test_completed_algorithm_redirects_to_its_visual_result():
     assert "task_id='TASK_ID'" in template
     assert "_anchor='task-result'" in template
     assert "{task_id}" in template
+
+
+def test_pending_job_does_not_render_an_unrelated_previous_result():
+    template = (ROOT / "app" / "templates" / "algorithms.html").read_text(encoding="utf-8")
+
+    assert "if selected_task and not job_id" in template
+
+
+def test_render_deploys_a_dedicated_algorithm_worker():
+    render = (ROOT / "render.yaml").read_text(encoding="utf-8")
+
+    assert "type: worker" in render
+    assert "python worker.py" in render
